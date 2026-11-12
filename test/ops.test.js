@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveHealth, parseWhen, activeMaintenance, uptime, trimHistory, updateIncidents, mttrMs, summarize, isStale, toPublic, diffForFloor, rebaseDemo, appearanceFor, fmtMs, SAMPLE, DAY, FLOOR_STATUS } from '../public/shared/ops.js';
+import { dependencyGraph, deriveHealth, parseWhen, activeMaintenance, uptime, trimHistory, updateIncidents, mttrMs, summarize, isStale, toPublic, diffForFloor, rebaseDemo, appearanceFor, fmtMs, SAMPLE, DAY, FLOOR_STATUS } from '../public/shared/ops.js';
 
 const NOW = Date.UTC(2026, 10, 12, 12, 0, 0);
 const svc = (extra = {}) => ({ id: 's', name: 'Svc', ...extra });
@@ -139,4 +139,29 @@ test('a service that never goes dark (downAfter >= 100) shows the reason without
   const r = deriveHealth({ service: { thresholds: { downAfter: 9999 } }, result: { ok: false, ms: 5, error: 'queue over limit: 37 open (max 30)' }, prev: { consecutiveFailures: 200 }, depsFailing: [], now: 0 });
   assert.equal(r.health, 'failing');
   assert.equal(r.detail, 'queue over limit: 37 open (max 30)');
+});
+
+// ---------- dependency graph ----------
+const gnode = (id, health, dependsOn) => ({ id, name: id.toUpperCase(), health, dependsOn });
+
+test('dependencyGraph: layers follow the longest dependency chain; unrelated services are left out', () => {
+  const g = dependencyGraph([gnode('idp', 'healthy'), gnode('router', 'down'), gnode('fn', 'healthy', ['idp']), gnode('app', 'failing', ['fn', 'router']), gnode('solo', 'healthy')]);
+  const layer = Object.fromEntries(g.nodes.map((n) => [n.id, n.layer]));
+  assert.deepEqual(layer, { idp: 0, router: 0, fn: 1, app: 2 });
+  assert.ok(!('solo' in layer));
+  assert.equal(g.layers, 3);
+  assert.deepEqual(g.edges.map((e) => `${e.from}>${e.to}`).sort(), ['fn>app', 'idp>fn', 'router>app']);
+  assert.deepEqual(g.edges.filter((e) => e.bad).map((e) => e.from), ['router']);
+});
+
+test('dependencyGraph: root causes are down services, or failing ones with no failing dependency', () => {
+  const g = dependencyGraph([gnode('router', 'down'), gnode('app', 'failing', ['router']), gnode('db', 'failing'), gnode('api', 'failing', ['db']), gnode('ok', 'healthy', ['router'])]);
+  assert.deepEqual(g.rootCauses.sort(), ['db', 'router']);
+});
+
+test('dependencyGraph: unknown dependencies, self-dependencies and cycles are survivable', () => {
+  assert.equal(dependencyGraph([gnode('a', 'healthy', ['ghost', 'a'])]).edges.length, 0);
+  const g = dependencyGraph([gnode('a', 'down', ['b']), gnode('b', 'failing', ['a'])]);
+  assert.ok(g.nodes.length === 2 && g.edges.length === 1, 'the back edge of the cycle is dropped');
+  assert.equal(dependencyGraph([]).layers, 0);
 });

@@ -1,6 +1,6 @@
 // The Board: every service at a glance, with filters, uptime, a latency sparkline and recent incidents.
 import { STATUS_LABEL, pct, ago, dur } from './ops.js';
-import { fmtMs, DAY } from './shared/ops.js';
+import { fmtMs, DAY, dependencyGraph } from './shared/ops.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -14,8 +14,10 @@ export function init(state) {
   $('boardBtn').onclick = open;
   $('boardClose').onclick = close;
   $('board').addEventListener('input', (e) => { if (e.target.id === 'boardSearch') { filter.q = e.target.value.toLowerCase(); render(); } });
+  $('board').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('.dnode')) { e.preventDefault(); e.target.closest('.dnode').dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
   $('board').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-bcat],[data-bhealth],[data-bshow]'); if (!b) return;
+    const b = e.target.closest('[data-bcat],[data-bhealth],[data-bshow],[data-bsearch]'); if (!b) return;
+    if (b.dataset.bsearch) { filter.q = b.dataset.bsearch.toLowerCase(); filter.cat = 'all'; filter.health = 'all'; render(); document.getElementById('boardSearch')?.scrollIntoView({ block: 'nearest' }); return; }
     if (b.dataset.bcat) filter.cat = b.dataset.bcat; if (b.dataset.bhealth) filter.health = b.dataset.bhealth;
     if (b.dataset.bshow) { close(); state.showOnFloor?.(b.dataset.bshow); return; }
     render();
@@ -32,6 +34,22 @@ async function fetchExtras() {
 export function open() { $('board').hidden = false; document.body.classList.add('boardOpen'); render(); fetchExtras(); clearInterval(timer); timer = setInterval(fetchExtras, 60000); }
 export function close() { $('board').hidden = true; document.body.classList.remove('boardOpen'); clearInterval(timer); }
 export const update = () => { if (!$('board').hidden) render(); };
+
+/** Dependency diagram: layers left to right, edges curve from a dependency to what waits on it. Nodes are focusable. */
+export function depGraphSvg(services) {
+  const g = dependencyGraph(services);
+  if (!g.edges.length) return '';
+  const W = 150, H = 30, GX = 56, GY = 12;
+  const cols = Array.from({ length: g.layers }, (_, l) => g.nodes.filter((n) => n.layer === l));
+  const pos = new Map();
+  cols.forEach((col, l) => col.forEach((n, i) => pos.set(n.id, { x: 8 + l * (W + GX), y: 8 + i * (H + GY) })));
+  const width = 16 + g.layers * W + (g.layers - 1) * GX, height = 16 + Math.max(...cols.map((c) => c.length)) * (H + GY) - GY;
+  const edge = (e) => { const a = pos.get(e.from), b = pos.get(e.to), x1 = a.x + W, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2, mx = (x1 + x2) / 2;
+    return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="${e.bad ? '#f0647a' : '#c9b6ee'}" stroke-width="${e.bad ? 2 : 1.4}"/>`; };
+  const node = (n) => { const p = pos.get(n.id), root = g.rootCauses.includes(n.id), name = n.name.length > 20 ? `${n.name.slice(0, 19)}…` : n.name;
+    return `<g class="dnode ${HEALTH_CLASS[n.health]}${root ? ' root' : ''}" tabindex="0" role="button" data-bsearch="${esc(n.name)}" aria-label="${esc(n.name)}: ${n.health}${root ? ', root cause' : ''}. Press Enter to show its card."><rect x="${p.x}" y="${p.y}" width="${W}" height="${H}" rx="9"/><text x="${p.x + 10}" y="${p.y + H / 2 + 4}">${esc(name)}</text>${root ? `<text class="rc" x="${p.x + W - 8}" y="${p.y + H / 2 + 4}" text-anchor="end">root cause</text>` : ''}</g>`; };
+  return `<h5>Dependencies</h5><p class="fine">Arrows point from a service to the things that wait on it. Red = failing or down. Select a service to filter the cards.</p><div class="depwrap"><svg class="depgraph" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="group" aria-label="Service dependency graph">${g.edges.map(edge).join('')}${g.nodes.map(node).join('')}</svg></div>`;
+}
 
 /** Latency sparkline for the last 24h, downsampled to ~48 points. Failures are red ticks on the baseline. */
 export function sparkline(samples, now = Date.now(), width = 120, height = 28) {
@@ -72,6 +90,7 @@ function render() {
         <div class="bstats"><span>24h <b>${pct(s.uptime24h)}</b></span><span>7d <b>${pct(s.uptime7d)}</b></span><span>${s.latencyMs != null ? `<b>${fmtMs(s.latencyMs)}</b>` : '<b>—</b>'}</span><span class="muted">${ago(s.since).replace(' ago', '')} in state</span></div>
         ${s.onFloor !== false ? `<button class="abtn ghost sm" data-bshow="${esc(s.id)}">Show on floor</button>` : ''}
       </article>`).join('') || '<p class="fine">No services match.</p>'}</div>
+    ${depGraphSvg(d.services)}
     <h5>Recent incidents</h5>
     <ul class="incidents">${[...incidents].reverse().slice(0, 12).map((i) => `<li class="${i.end ? '' : 'open'}"><b>${esc(i.name)}</b> <span>${i.end ? `resolved · lasted ${dur(i.durationMs)}` : 'OPEN'}</span> <small>${ago(i.start)} · ${esc(i.detail || '')}</small></li>`).join('') || '<li class="muted">No incidents recorded.</li>'}</ul>`;
 }

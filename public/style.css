@@ -163,3 +163,10 @@ body.boardOpen { overflow: hidden; }
 @media (max-width: 760px) { .chip .lbl { display: none; } #boardBtn .lbl { display: none; } .chip.time { margin-left: 0; } }
 .bmetrics{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 2px;font-size:12px}
 .bmetrics span{background:rgba(179,135,245,.14);border-radius:8px;padding:2px 8px}
+.depwrap{overflow-x:auto;padding:4px 0 8px}
+.depgraph .dnode{cursor:pointer;outline:none}
+.depgraph .dnode rect{fill:#fff;stroke:#c9b6ee;stroke-width:1.4}
+.depgraph .dnode text{font-size:11.5px;fill:#4a3a63;font-weight:600}
+.depgraph .dnode .rc{font-size:9px;fill:#d63a57;font-weight:700}
+.depgraph .dnode.warn rect{stroke:#f2b04a}.depgraph .dnode.bad rect{stroke:#f0647a;fill:#fff1f3}.depgraph .dnode.down rect{stroke:#d63a57;fill:#ffe3e8}.depgraph .dnode.maint rect{stroke:#8ab6f0}
+.depgraph .dnode:focus-visible rect,.depgraph .dnode:hover rect{stroke-width:3;stroke:#b387f5}
