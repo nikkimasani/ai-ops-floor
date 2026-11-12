@@ -158,3 +158,23 @@ test('validAck: an ack only counts for the incident that is open now', async () 
   assert.equal(validAck(acks, [{ id: 'a' }], 'a'), null, 'no open incident known: not acknowledged');
   assert.equal(validAck({}, [{ id: 'a', incidentId: 'a-1' }], 'a'), null);
 });
+
+test('reconcileAcks: follows pagination, so an /ack after 100 earlier comments is still found; and stops at the last page', async () => {
+  const { reconcileAcks } = await import('../src/ack-reconcile.js');
+  const incidents = [{ ...inc('a-1', 'a'), issue: 5 }];
+  const chatter = Array.from({ length: 100 }, (_, i) => ({ user: { login: 'someone' }, body: `note ${i}`, created_at: '2026-11-12T01:00:00Z' }));
+  const pages = { 1: chatter, 2: [{ user: { login: 'octocat' }, body: '/ack', created_at: '2026-11-12T02:00:00Z' }] };
+  const seen = [];
+  const fakeFetch = async (url) => {
+    const page = String(url).match(/comments\?per_page=100&page=(\d+)/);
+    if (page) { seen.push(Number(page[1])); return { ok: true, status: 200, json: async () => pages[page[1]] || [] }; }
+    return { ok: true, status: 200, json: async () => ({ role_name: 'write' }) };
+  };
+  const acks = await reconcileAcks({}, incidents, { repo: 'o/r', token: 't', fetch: fakeFetch, log: () => {} });
+  assert.equal(acks.a.by, 'octocat');
+  assert.deepEqual(seen, [1, 2]);
+  seen.length = 0;
+  const none = await reconcileAcks({}, incidents, { repo: 'o/r', token: 't', fetch: async (u) => (/comments\?/.test(String(u)) ? (seen.push(1), { ok: true, status: 200, json: async () => chatter }) : { ok: true, status: 200, json: async () => ({ role_name: 'write' }) }), log: () => {} });
+  assert.deepEqual(none, {});
+  assert.equal(seen.length, 10, 'bounded at 10 pages');
+});

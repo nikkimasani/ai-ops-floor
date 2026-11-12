@@ -5,6 +5,7 @@
 import { applyAck, parseAck } from './ack.js';
 
 const ALLOWED = new Set(['admin', 'maintain', 'write', 'triage']);
+const MAX_PAGES = 10;                                                     // 1000 comments per incident is far beyond any real incident; bounds the API calls
 
 export async function reconcileAcks(acks, incidents, { repo, token, fetch: doFetch = fetch, log = console.warn }) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(String(repo)) || !token) return acks;
@@ -21,12 +22,16 @@ export async function reconcileAcks(acks, incidents, { repo, token, fetch: doFet
   for (const inc of incidents.filter((i) => i.end === null && i.issue)) {
     if (next[inc.service]?.incidentId === inc.id) continue;              // already acknowledged: first ack wins
     try {
-      const res = await api(`/issues/${inc.issue}/comments?per_page=100`);
-      if (!res.ok) { log(`ack reconcile: reading comments failed (HTTP ${res.status})`); continue; }
-      for (const c of await res.json()) {                                 // oldest first: the first authorised /ack wins
-        if (!parseAck(c.body).ack || !(await allowed(c.user?.login))) continue;
-        next = applyAck(next, { incidents, incidentId: inc.id, by: c.user.login, at: Date.parse(c.created_at) || Date.now() });
-        break;
+      scan: for (let page = 1; page <= MAX_PAGES; page++) {           // oldest first, so the first authorised /ack wins
+        const res = await api(`/issues/${inc.issue}/comments?per_page=100&page=${page}`);
+        if (!res.ok) { log(`ack reconcile: reading comments failed (HTTP ${res.status})`); break; }
+        const comments = await res.json();
+        for (const c of comments) {
+          if (!parseAck(c.body).ack || !(await allowed(c.user?.login))) continue;
+          next = applyAck(next, { incidents, incidentId: inc.id, by: c.user.login, at: Date.parse(c.created_at) || Date.now() });
+          break scan;
+        }
+        if (comments.length < 100) break;                              // last page
       }
     } catch { log('ack reconcile: reading comments failed (connection error)'); }
   }
