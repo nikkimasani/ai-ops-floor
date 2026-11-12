@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { adapters as defaultAdapters } from './adapters/index.js';
 import { loadConfig } from './config.js';
+import { planAlerts, sendAlerts } from './alerts.js';
 import { DEFAULTS, SAMPLE, deriveHealth, mttrMs, summarize, toPublic, trimHistory, uptime, updateIncidents, activeMaintenance, DAY } from '../public/shared/ops.js';
 import { SEATS } from '../public/shared/layout.js';
 
@@ -96,8 +97,13 @@ async function main() {
   const arg = (name, dflt) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : dflt; };
   const config = loadConfig(arg('--config', 'config/services.json'));
   const dir = arg('--data', 'public/data');
-  const next = await runOnce({ config, state: loadState(dir) });
+  const prev = loadState(dir);
+  const next = await runOnce({ config, state: prev });
   saveState(dir, next);
+  if (config.alerts?.webhook && !config.site.demo) {          // after saving: at-most-once delivery, never re-alert on a re-run
+    const r = await sendAlerts(planAlerts(prev.incidents, next.incidents, config.services, config.alerts), config.alerts);
+    if (r.sent || r.failed) console.log(`alerts: ${r.sent} sent, ${r.failed} failed`);
+  }
   const s = next.status.summary;
   console.log(`probed ${s.total} services: ${s.healthy} healthy, ${s.degraded} degraded, ${s.failing} failing, ${s.down} down, ${s.maintenance} maintenance`);
   if (process.argv.includes('--fail-on-down') && s.down) process.exitCode = 2;

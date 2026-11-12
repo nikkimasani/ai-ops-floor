@@ -17,6 +17,11 @@ export function validateConfig(cfg) {
     if (!c.label) add(`category "${k}" needs a label`);
     if (!SEATED_ROOMS.includes(c.room)) add(`category "${k}" room must be one of ${SEATED_ROOMS.join(', ')} (got "${c.room}")`);
   }
+  if (cfg.alerts) {
+    if (typeof cfg.alerts.webhook !== 'string' || !cfg.alerts.webhook.startsWith('env:')) add('alerts.webhook must be an "env:NAME" reference (never put the webhook URL in the config)');
+    if (cfg.alerts.format && !['text', 'json'].includes(cfg.alerts.format)) add('alerts.format must be "text" or "json"');
+    if (cfg.alerts.maxTier != null && !Number.isFinite(cfg.alerts.maxTier)) add('alerts.maxTier must be a number');
+  }
   if (!Array.isArray(cfg.services) || !cfg.services.length) { add('services must be a non-empty array'); return errors; }
   const ids = new Set();
   for (const s of cfg.services) {
