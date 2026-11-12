@@ -45,11 +45,17 @@
       "dependsOn": [],
       "check": {
         "adapter": "http",
-        "url": "https://REPLACE-ME.example.invalid/api/health?code=env:FUNC_EXAMPLE_KEY",
+        "url": "https://REPLACE-ME.example.invalid/api/health",
         "headers": {
           "x-functions-key": "env:FUNC_EXAMPLE_KEY"
         },
-        "expectBodyIncludes": "ok"
+        "expectStatus": 200,
+        "expectBodyIncludes": "\"status\":\"ok\"",
+        "timeoutMs": 10000
+      },
+      "thresholds": {
+        "degradedMs": 4000,
+        "downAfter": 3
       }
     },
     {
