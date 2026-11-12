@@ -1,0 +1,40 @@
+# Shared acknowledgements: a team member comments `/ack` on an incident issue; this records who.
+# Only does anything for issues labelled `incident` (opened by the probe when site.sharedAcks is on).
+name: ack
+on:
+  issue_comment:
+    types: [created]
+concurrency:
+  group: probe                     # same group as probe.yml: both rewrite the `data` branch, so they must not overlap
+  cancel-in-progress: false
+permissions:
+  contents: write                  # push the `data` branch
+  actions: write                   # re-run the probe so the dashboard redeploys with the new ack
+jobs:
+  ack:
+    if: >-
+      github.event.issue.pull_request == null &&
+      contains(github.event.issue.labels.*.name, 'incident') &&
+      contains(github.event.comment.body, '/ack')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Only people with write or triage access may acknowledge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_USER: ${{ github.event.comment.user.login }}     # passed via env, never interpolated into the script
+        run: |
+          role="$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$COMMENT_USER/permission" --jq .role_name)"
+          case "$role" in admin|maintain|write|triage) echo "ok: $COMMENT_USER is $role" ;; *) echo "$COMMENT_USER has role '$role': not allowed to acknowledge"; exit 1 ;; esac
+      - run: scripts/restore-data.sh
+      - run: node src/ack.js --data public/data
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_USER: ${{ github.event.comment.user.login }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+      - run: scripts/publish-data.sh
+      - name: Redeploy the dashboard
+        env: { GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: gh workflow run probe.yml

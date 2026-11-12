@@ -11,6 +11,9 @@ import { fileURLToPath } from 'node:url';
 import { adapters as defaultAdapters } from './adapters/index.js';
 import { loadConfig } from './config.js';
 import { planAlerts, sendAlerts } from './alerts.js';
+import { planIssues, syncIssues } from './incident-issues.js';
+import { loadAcks, saveAcks, pruneAcks } from './ack.js';
+import { reconcileAcks } from './ack-reconcile.js';
 import { DEFAULTS, SAMPLE, deriveHealth, mttrMs, summarize, toPublic, trimHistory, uptime, updateIncidents, activeMaintenance, DAY } from '../public/shared/ops.js';
 import { SEATS } from '../public/shared/layout.js';
 
@@ -72,7 +75,7 @@ export async function runOnce({ config, state = {}, now = Date.now(), adapters =
   const keepIncidents = incidents.filter((i) => i.end === null || i.end > now - 30 * DAY).slice(-200);
   const status = {
     generatedAt: now, intervalMin, demo: Boolean(config.site.demo),
-    site: { title: config.site.title || 'AI Ops Floor', categories: config.site.categories },
+    site: { title: config.site.title || 'AI Ops Floor', categories: config.site.categories, ...(config.site.sharedAcks && config.site.repo && { sharedAcks: true, repo: config.site.repo }) },
     summary: summarize(records), mttrMs: mttrMs(keepIncidents, now), openIncidents: keepIncidents.filter((i) => i.end === null).length,
     services: records.map(toPublic),
   };
@@ -99,9 +102,22 @@ async function main() {
   const dir = arg('--data', 'public/data');
   const prev = loadState(dir);
   const next = await runOnce({ config, state: prev });
+  const links = {};                                                   // incident id -> issue url (for alerts)
+  const issueUrl = (n) => `https://github.com/${config.site.repo || process.env.GITHUB_REPOSITORY}/issues/${n}`;
+  if (config.site.sharedAcks && !config.site.demo) {
+    const r = await syncIssues(planIssues(prev.incidents, next.incidents, config.services), { repo: process.env.GITHUB_REPOSITORY, token: process.env.GITHUB_TOKEN });
+    for (const [id, v] of Object.entries(r.opened)) { const inc = next.incidents.find((i) => i.id === id); if (inc) inc.issue = v.number; }
+    for (const id of r.closedIds) { const inc = next.incidents.find((i) => i.id === id); if (inc) inc.issueClosed = true; }   // until then, closing is retried every run
+    for (const i of next.incidents) if (i.issue) links[i.id] = issueUrl(i.issue);
+    for (const rec of next.status.services) { const o = next.incidents.find((i) => i.service === rec.id && i.end === null && i.issue); if (o) { rec.ackIssue = o.issue; rec.incidentId = o.id; } }   // lets the dashboard link to the issue
+    const acks = await reconcileAcks(pruneAcks(loadAcks(dir), next.incidents), next.incidents, { repo: process.env.GITHUB_REPOSITORY, token: process.env.GITHUB_TOKEN });   // picks up any /ack whose workflow run was cancelled
+    saveAcks(dir, acks);                                              // acks end with their incident (pruned above)
+    if (r.opened && Object.keys(r.opened).length) console.log(`incident issues: ${Object.keys(r.opened).length} opened`);
+  }
   saveState(dir, next);
   if (config.alerts?.webhook && !config.site.demo) {          // after saving: at-most-once delivery, never re-alert on a re-run
-    const r = await sendAlerts(planAlerts(prev.incidents, next.incidents, config.services, config.alerts), config.alerts);
+    const alerts = planAlerts(prev.incidents, next.incidents, config.services, config.alerts).map((a) => ({ ...a, url: links[a.incident] }));
+    const r = await sendAlerts(alerts, config.alerts);
     if (r.sent || r.failed) console.log(`alerts: ${r.sent} sent, ${r.failed} failed`);
   }
   const s = next.status.summary;
