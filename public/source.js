@@ -25,7 +25,7 @@ export async function connect(h) {
   const apply = (d) => {
     const stale = !d.demo && isStale(d.generatedAt, Date.now(), d.intervalMin);
     const labelByRoom = {};
-    for (const c of Object.values(d.site?.categories || {})) { labelByRoom[c.room] = c.label; if (ROOMS[c.room]) ROOMS[c.room].label = c.label; }
+    for (const c of Object.values(d.site?.categories || {})) { if (labelByRoom[c.room]) continue; labelByRoom[c.room] = c.label; if (ROOMS[c.room]) ROOMS[c.room].label = c.label; }   // first category names a shared room
     // Stale data must never read as "all healthy": every service drops to "unknown" until probes resume.
     const records = stale ? d.services.map((s) => ({ ...s, health: 'unknown', detail: 'data is stale: probes may have stopped' })) : d.services;
     const { events, next } = diffForFloor(current, records, labelByRoom);

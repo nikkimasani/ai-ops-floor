@@ -51,3 +51,11 @@ test('servicenow checks need instance, user and password', async () => {
   base.services[0].check = { adapter: 'servicenow', instance: 'env:A', user: 'env:B', password: 'env:C' };
   assert.deepEqual(validateConfig(base), []);
 });
+
+test('copilot-seats checks need org, token and a limit', async () => {
+  const { validateConfig } = await import('../src/config.js');
+  const mk = (check) => ({ site: { categories: { q: { label: 'Q', room: 'bullpen' } } }, services: [{ id: 'c1', name: 'C', category: 'q', check: { adapter: 'copilot-seats', ...check } }] });
+  assert.match(validateConfig(mk({ org: 'env:A' })).join('\n'), /copilot-seats check needs org and token/);
+  assert.match(validateConfig(mk({ org: 'env:A', token: 'env:B' })).join('\n'), /needs maxSeats and\/or maxInactivePct/);
+  assert.deepEqual(validateConfig(mk({ org: 'env:A', token: 'env:B', maxSeats: 10 })), []);
+});

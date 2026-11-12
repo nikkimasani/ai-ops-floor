@@ -3,6 +3,7 @@
 import * as http from './http.js';
 import * as fixture from './fixture.js';
 import * as servicenow from './servicenow.js';
+import * as copilotSeats from './copilot-seats.js';
 
-export const adapters = { http, fixture, servicenow };
+export const adapters = { http, fixture, servicenow, 'copilot-seats': copilotSeats };
 export const adapterNames = () => Object.keys(adapters);

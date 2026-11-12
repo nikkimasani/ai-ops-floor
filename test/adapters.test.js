@@ -116,3 +116,39 @@ test('servicenow: sends basic auth and the configured query, and asks only for c
   assert.match(decodeURIComponent(seen.url), /assignment_group=SECRETGROUP/);
   assert.equal(seen.opts.headers.Authorization, `Basic ${Buffer.from('svc-user:pw-123').toString('base64')}`);
 });
+
+// ---------- copilot-seats ----------
+import { check as csCheck, evaluate as csEvaluate } from '../src/adapters/copilot-seats.js';
+const csEnv = { O: 'acme-secret-org', T: 'ghp_secrettoken123' };
+const csCfg = { org: 'env:O', token: 'env:T', maxSeats: 500, maxInactivePct: 30 };
+const breakdown = (o) => ({ seat_breakdown: { total: 400, added_this_cycle: 5, pending_invitation: 0, pending_cancellation: 7, active_this_cycle: 300, inactive_this_cycle: 100, ...o } });
+const csFetch = (body, status = 200, calls = []) => async (url, opts) => { calls.push({ url: String(url), opts }); return { ok: status < 400, status, json: async () => body }; };
+
+test('copilot-seats: aggregate counts, within limits is ok, and only the billing summary is requested', async () => {
+  const calls = [];
+  const r = await csCheck(csCfg, { env: csEnv, fetch: csFetch(breakdown({}), 200, calls) });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.metrics, { seats: 400, inactiveSeats: 100, pendingCancellation: 7 });
+  assert.equal(calls[0].url, 'https://api.github.com/orgs/acme-secret-org/copilot/billing');
+  assert.equal(calls[0].opts.headers.Authorization, 'Bearer ghp_secrettoken123');
+  assert.equal(calls.length, 1);
+});
+
+test('copilot-seats: too many seats or too many inactive fails with numbers-only reasons', () => {
+  assert.equal(csEvaluate(breakdown({ total: 600 }).seat_breakdown, csCfg).error, 'seat usage over limit: 600 seats (max 500)');
+  assert.equal(csEvaluate(breakdown({ inactive_this_cycle: 200 }).seat_breakdown, csCfg).error, 'seat usage over limit: 50% inactive (max 30%)');
+  assert.equal(csEvaluate({}, csCfg).error, 'unexpected response body');
+});
+
+test('copilot-seats: errors never leak the org or token', async () => {
+  const results = [
+    await csCheck(csCfg, { env: csEnv, fetch: csFetch({}, 403) }),
+    await csCheck(csCfg, { env: csEnv, fetch: csFetch({}, 500) }),
+    await csCheck(csCfg, { env: csEnv, fetch: async () => { throw new Error('ENOTFOUND api.github.com acme-secret-org ghp_secrettoken123'); } }),
+    await csCheck({ ...csCfg, token: 'env:MISSING' }, { env: csEnv }),
+    await csCheck({ ...csCfg, org: 'bad/org' }, { env: csEnv }),
+  ];
+  assert.deepEqual(results.map((r) => r.error), ['not authorized (check the token permissions)', 'HTTP 500', 'connection failed', 'configuration error: missing secret', 'configuration error: missing secret']);
+  const all = JSON.stringify(results);
+  for (const s of ['acme-secret-org', 'ghp_secret']) assert.ok(!all.includes(s), `leaked ${s}`);
+});
