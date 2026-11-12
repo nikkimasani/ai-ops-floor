@@ -1,0 +1,43 @@
+# Probe every service on a schedule, keep the history on the `data` branch, and publish the dashboard.
+#
+# NOT YET RUN ON GITHUB: this workflow was written and its scripts tested locally, but never executed by
+# GitHub Actions. See docs/ADOPTING.md for the one-time setup (Pages source = GitHub Actions) and first run.
+name: probe
+on:
+  schedule:
+    - cron: '*/5 * * * *'          # GitHub's minimum; scheduled runs can be delayed by several minutes at busy times
+  workflow_dispatch:
+concurrency:
+  group: probe
+  cancel-in-progress: false
+permissions:
+  contents: write                  # push the `data` branch
+  pages: write
+  id-token: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest         # use a self-hosted runner here to reach endpoints that aren't on the public internet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: scripts/restore-data.sh
+      - run: node src/probe.js
+        env:
+          # Secrets referenced from config/services.json as "env:NAME" must be listed here, e.g.
+          # FUNC_EXAMPLE_KEY: ${{ secrets.FUNC_EXAMPLE_KEY }}
+          NODE_NO_WARNINGS: '1'
+      - run: scripts/publish-data.sh
+      - name: Assemble site
+        run: mkdir _site && cp -r public/. _site/
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+  deploy:
+    needs: probe
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

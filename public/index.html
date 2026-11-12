@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#ffe9f3">
+<title>AI Ops Floor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌸%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <button id="menuBtn" class="icon" aria-label="Toolbox">☰</button>
+  <div class="brand"><span class="logo">🌸</span><b>AI Ops Floor</b></div>
+  <button id="needsBtn" class="chip needs" aria-label="Needs me"><span class="em">🙋</span><span class="lbl">needs me</span><b id="needsCount">0</b></button>
+  <button id="opsSummary" class="chip summary" aria-label="Health summary: open the Board"></button>
+  <button id="boardBtn" class="chip" aria-label="Board view">📋<span class="lbl">Board</span></button>
+  <button id="timeBtn" class="chip time" aria-label="Office time"><span class="lbl">OFFICE TIME</span><span id="timeIcon">☀️</span><span id="clock"></span></button>
+  <span id="mode" class="badge">loading…</span>
+</header>
+<div id="staleBanner" role="alert" hidden></div>
+
+<main>
+  <canvas id="floor" aria-label="Office floor: each character is a service; red or grey means it needs attention"></canvas>
+  <button id="legendPill" class="pill">WHAT YOU'RE SEEING</button>
+
+  <section id="activity" class="card">
+    <div class="ahead">
+      <b>INCIDENT FEED</b>
+      <button id="collapse" class="icon sm" aria-label="Collapse">▾</button>
+    </div>
+    <div class="abody">
+      <nav id="tabs" class="tabs">
+        <button data-f="all" class="on">ALL</button>
+        <button data-f="dark">🥀 DOWN</button>
+        <button data-f="failing">🚧 FAILING</button>
+        <button data-f="recovered">✅ RECOVERED</button>
+        <button data-f="funny">🌷 FUN</button>
+      </nav>
+      <ol id="feed" class="feed"></ol>
+      <form id="taskForm" hidden><input id="taskInput" type="text"><button type="submit">Go</button></form>
+    </div>
+  </section>
+
+  <aside id="inspect" class="card" hidden></aside>
+
+  <section id="editTray" class="card" hidden>
+    <div class="ehead"><b>🛋️ Edit Office</b><span id="editHint"></span>
+      <div class="erow"><button id="editUndo" class="icon sm" aria-label="Undo">↩</button><button id="editReset" class="icon sm" aria-label="Reset layout">⟲</button><button id="editDone" class="abtn">Done</button></div></div>
+    <div id="editActions" class="erow" hidden><button id="actRotate" class="abtn alt">↻ Rotate</button><button id="actMove" class="abtn alt">✋ Move</button><button id="actRemove" class="abtn ghost">🗑 Remove</button></div>
+    <div id="editCards" class="icards"></div>
+  </section>
+</main>
+
+<section id="board" hidden>
+  <div class="bhead"><b>📋 Service board</b><button id="boardClose" class="icon sm" aria-label="Close board">✕</button></div>
+  <div id="boardBody"></div>
+</section>
+
+<div id="inboxModal" class="modal" hidden><div class="sheet card">
+  <div class="shead"><b>🙋 Needs me</b><button class="icon sm" data-close>✕</button></div>
+  <ol id="inboxList" class="inbox"></ol>
+</div></div>
+
+<div id="walkinModal" class="modal" hidden><div class="sheet card event">
+  <div class="tag">✨ OFFICE EVENT</div>
+  <div class="evrow"><canvas id="walkinFace" width="150" height="150"></canvas>
+    <div><h2 id="walkinName"></h2><p id="walkinText"></p></div></div>
+  <div class="btns"><button id="walkinYes" class="yes"><kbd>Y</kbd> Yes</button><button id="walkinNo" class="no"><kbd>N</kbd> No</button></div>
+</div></div>
+
+<div id="legendModal" class="modal" hidden><div class="sheet card">
+  <div class="shead"><b>What you're seeing</b><button class="icon sm" data-close>✕</button></div>
+  <ul class="legend" id="legendList"></ul>
+  <p class="fine" id="modeNote"></p>
+</div></div>
+
+<div id="toolboxModal" class="modal" hidden><div class="sheet card wide">
+  <div class="shead"><b>🧰 Toolbox</b><button class="icon sm" data-close>✕</button></div>
+  <div id="toolboxBody"></div>
+</div></div>
+
+<div id="mgrModal" class="modal" hidden><div class="sheet card wide">
+  <div class="shead"><b>✨ Agent Manager</b><button class="icon sm" data-close>✕</button></div>
+  <div id="mgrBody"></div>
+</div></div>
+
+<div id="partyModal" class="modal" hidden><div class="sheet card">
+  <div class="shead"><b>🎉 Party planner</b><button class="icon sm" data-close>✕</button></div>
+  <div id="partyBody"></div>
+</div></div>
+
+<div id="toast" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
