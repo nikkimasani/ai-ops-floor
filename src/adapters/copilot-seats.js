@@ -17,8 +17,8 @@ export function evaluate(b, cfg) {
   const metrics = { seats, ...(Number.isFinite(inactive) && { inactiveSeats: inactive }), ...(Number.isFinite(pendingCancellation) && { pendingCancellation }) };
   const problems = [];
   if (cfg.maxSeats != null && seats > cfg.maxSeats) problems.push(`${seats} seats (max ${cfg.maxSeats})`);
-  const pct = seats && Number.isFinite(inactive) ? Math.round((inactive / seats) * 100) : 0;
-  if (cfg.maxInactivePct != null && pct > cfg.maxInactivePct) problems.push(`${pct}% inactive (max ${cfg.maxInactivePct}%)`);
+  const pct = seats && Number.isFinite(inactive) ? (inactive / seats) * 100 : 0;          // compare unrounded: 30.25% is over a 30% limit
+  if (cfg.maxInactivePct != null && pct > cfg.maxInactivePct) problems.push(`${Math.round(pct * 10) / 10}% inactive (max ${cfg.maxInactivePct}%)`);
   return { ok: !problems.length, metrics, error: problems.length ? `seat usage over limit: ${problems.join(', ')}` : undefined };
 }
 

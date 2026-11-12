@@ -15,11 +15,11 @@ const parseSnTime = (s) => Date.parse(`${String(s).replace(' ', 'T')}Z`);   // S
 export function evaluate(createdAt, cfg, now, total = createdAt.length) {
   const ages = createdAt.map(parseSnTime).filter(Number.isFinite).map((t) => Math.max(0, (now - t) / HOUR));
   const open = Math.max(total, ages.length);
-  const oldestHours = ages.length ? Math.round(Math.max(...ages)) : 0;
+  const oldestExact = ages.length ? Math.max(...ages) : 0, oldestHours = Math.round(oldestExact);   // compare unrounded, publish rounded
   const breaching = cfg.slaHours ? ages.filter((a) => a > cfg.slaHours).length : 0;
   const problems = [];
   if (cfg.maxOpen != null && open > cfg.maxOpen) problems.push(`${open} open (max ${cfg.maxOpen})`);
-  if (cfg.maxOldestHours != null && oldestHours > cfg.maxOldestHours) problems.push(`oldest ${oldestHours}h (max ${cfg.maxOldestHours}h)`);
+  if (cfg.maxOldestHours != null && oldestExact > cfg.maxOldestHours) problems.push(`oldest ${oldestHours}h (max ${cfg.maxOldestHours}h)`);
   return { ok: !problems.length, metrics: { open, oldestHours, breaching }, error: problems.length ? `queue over limit: ${problems.join(', ')}` : undefined };
 }
 

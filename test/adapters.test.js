@@ -206,3 +206,11 @@ test('copilot-seats: errors never leak the org or token', async () => {
   const all = JSON.stringify(results);
   for (const s of ['acme-secret-org', 'ghp_secret']) assert.ok(!all.includes(s), `leaked ${s}`);
 });
+
+test('limits compare unrounded values (30.25% inactive is over a 30% limit; 72.4h is over 72h)', () => {
+  const r = csEvaluate({ total: 400, inactive_this_cycle: 121 }, { maxInactivePct: 30 });
+  assert.equal(r.ok, false);
+  assert.equal(r.error, 'seat usage over limit: 30.3% inactive (max 30%)');
+  assert.equal(snEvaluate([sn(72.4)], { maxOldestHours: 72 }, NOW).ok, false);
+  assert.equal(snEvaluate([sn(71.9)], { maxOldestHours: 72 }, NOW).ok, true);
+});
