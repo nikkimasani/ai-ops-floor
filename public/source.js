@@ -24,7 +24,8 @@ export async function connect(h) {
 
   // Hand the page a fresh office for the current floor as a navigation snapshot (instant, no walking, no synthetic feed entries).
   const resetOffice = () => { unsub?.(); office = new Office({ empty: true }); current = new Map(); unsub = null; };
-  const publish = () => { h.onSnapshot({ ...office.snapshot(), mode: 'ops' }, { navigation: true }); unsub = office.subscribe((ev) => h.onEvent(ev)); };
+  const listen = () => { unsub?.(); unsub = office.subscribe((ev) => h.onEvent(ev)); };   // idempotent: never two subscriptions, whatever order things happen in
+  const publish = () => { h.onSnapshot({ ...office.snapshot(), mode: 'ops' }, { navigation: true }); listen(); };
 
   const apply = (d) => {
     lastData = d;
@@ -39,7 +40,7 @@ export async function connect(h) {
     const { events, next } = diffForFloor(current, records, labelByRoom, floor);
     current = next;
     for (const ev of events) { try { office.emit(ev); } catch (err) { console.warn('skipped event', ev.type, err.message); } }
-    if (swapped) publish();
+    if (swapped && subscribed) publish();                                // before the first snapshot, connect() publishes it itself
     h.onMeta?.({ data: d, stale, fetchedAt: Date.now(), error: null });
   };
 
@@ -50,7 +51,7 @@ export async function connect(h) {
     first = null;
   }
   if (first) { apply(first); h.onSnapshot({ ...office.snapshot(), mode: 'ops' }); }
-  unsub = office.subscribe((ev) => h.onEvent(ev)); subscribed = true;
+  listen(); subscribed = true;
 
   const tick = async () => {
     try { apply(await load()); }
