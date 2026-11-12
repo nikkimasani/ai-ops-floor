@@ -75,3 +75,16 @@ An adapter may return `metrics` with any of: `open`, `oldestHours`, `breaching`,
 
 ## Planned
 Application Insights (KQL) checks. See `docs/issues/`.
+
+## Alerts
+Optional Teams/Slack-style webhook alerts live in `src/alerts.js`, configured at the top level of `config/services.json`:
+```json
+"alerts": { "webhook": "env:ALERT_WEBHOOK", "maxTier": 2, "format": "text" }
+```
+- **One message when an incident opens (service goes down), one when it recovers.** A service that stays down sends nothing more.
+- Messages contain the **service name and tier only** (`🥀 Model Router (Tier 1) is DOWN`, `✅ Model Router (Tier 1) recovered after 12m`). No error text or hosts.
+- `webhook` must be an `env:` reference (validation rejects a literal URL) and must be `https`. Add the URL as an Actions secret and list it in `probe.yml`'s `env:` block.
+- `format`: `text` posts `{"text": "..."}` (Slack incoming webhooks and Teams "incoming webhook"-style connectors); `json` posts `{event, service, tier, text}` for anything custom (e.g. a Power Automate flow). If your Teams uses the newer *Workflows* webhook, use `json` and shape the card in the flow.
+- `maxTier` ignores lower-priority services (e.g. `2` skips tier 3).
+- Delivery is **at-most-once**: state is saved first, then alerts are sent. A failed send is logged as `alerts: delivery failed (HTTP 500)` (never with the URL) and is not retried. Demo configs (`site.demo`) never send.
+- If the workflow's *publish data* step fails after alerts were sent, the next run restores the old state and could repeat an alert.
