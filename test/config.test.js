@@ -68,3 +68,13 @@ test('copilot-seats checks need org, token and a limit', async () => {
   assert.match(validateConfig(mk({ org: 'env:A', token: 'env:B' })).join('\n'), /needs maxSeats and\/or maxInactivePct/);
   assert.deepEqual(validateConfig(mk({ org: 'env:A', token: 'env:B', maxSeats: 10 })), []);
 });
+
+test('config: floors must be whole numbers and a floor cannot have more pins than desks', async () => {
+  const { validateConfig } = await import('../src/config.js');
+  const { SEATS } = await import('../public/shared/layout.js');
+  const mk = (n, extra = {}) => ({ site: { categories: { q: { label: 'Q', room: 'bullpen' } } }, services: Array.from({ length: n }, (_, i) => ({ id: `s${i}`, name: 'S', category: 'q', check: { adapter: 'fixture', scenario: 'steady' }, ...extra })) });
+  assert.deepEqual(validateConfig(mk(SEATS.length, { floor: 2 })), []);
+  assert.match(validateConfig(mk(SEATS.length + 1, { floor: 2 })).join('\n'), new RegExp(`floor 2 has more than ${SEATS.length} services pinned`));
+  assert.match(validateConfig(mk(1, { floor: 0 })).join('\n'), /floor must be a whole number/);
+  assert.deepEqual(validateConfig(mk(SEATS.length + 1, { floor: 2, onFloor: false })), [], 'Board-only services take no desk');
+});

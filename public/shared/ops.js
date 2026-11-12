@@ -132,9 +132,10 @@ export function assignFloors(services, categories, seats) {
   const out = new Map();
   for (const s of services) {                                         // explicit floors first so they keep their desks
     if (s.onFloor === false || !Number.isInteger(s.floor) || s.floor < 1) continue;
-    const room = categories[s.category]?.room;
-    if (!take(s.floor, room)) { const left = floorFree(s.floor); const any = Object.keys(left).find((r) => left[r] > 0); if (any) left[any]--; }
-    out.set(s.id, s.floor);
+    const room = categories[s.category]?.room, left = floorFree(s.floor);
+    const where = left[room] > 0 ? room : Object.keys(left).find((r) => left[r] > 0);
+    if (!where) continue;                                             // pinned floor is full: falls through to normal placement (validation also rejects this)
+    left[where]--; out.set(s.id, s.floor);
   }
   for (const s of services) {
     if (s.onFloor === false || out.has(s.id)) continue;

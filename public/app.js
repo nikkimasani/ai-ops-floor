@@ -186,7 +186,7 @@ function drop(id) {
   refresh();
 }
 
-function applySnapshot(snap) {
+function applySnapshot(snap, opts = {}) {
   S.mode = snap.mode;
   S.agents = {};
   S.order = snap.agents.map((a) => a.id);
@@ -196,7 +196,7 @@ function applySnapshot(snap) {
   S.ops = snap.mode === 'ops';
   $('modeNote').textContent = 'Each character is a service. Health comes from the probe job’s latest snapshot (data/status.json); the page re-reads it every 30 seconds. Acknowledging a problem only hides it from your “needs me” list in this browser. Layout, looks and acknowledgements never leave this device.';
   $('legendList').innerHTML = ops.legendHtml();
-  for (const a of snap.agents) if (['dark', 'blocked'].includes(a.status)) noteTransition('idle', a);
+  if (!opts.navigation) for (const a of snap.agents) if (['dark', 'blocked'].includes(a.status)) noteTransition('idle', a);   // switching floors isn't a health change
   refresh(); renderWalkin();
 }
 

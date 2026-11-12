@@ -193,3 +193,10 @@ test('diffForFloor only shows the active floor and swaps characters when the flo
   assert.deepEqual(two.events.filter((e) => e.type === 'agent_leave').map((e) => e.id), ['a']);
   assert.deepEqual(two.events.filter((e) => e.type === 'agent_join').map((e) => e.info.id), ['b']);
 });
+
+test('assignFloors: pins beyond a floor\'s capacity spill instead of being published without a desk', () => {
+  const pins = [fs('1', 'x', { floor: 1 }), fs('2', 'x', { floor: 1 }), fs('3', 'x', { floor: 1 }), fs('4', 'x', { floor: 1 })];
+  const f = assignFloors(pins, CATS, SEATS3);                          // floor 1 has only 3 desks
+  assert.equal([...f.values()].filter((n) => n === 1).length, 3);
+  assert.equal(f.get('4'), 2);
+});

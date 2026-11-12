@@ -22,9 +22,15 @@ export async function connect(h) {
   let office = new Office({ empty: true }), unsub = null;
   let current = new Map(), subscribed = false, floor = h.floor || 1, lastData = null;
 
+  // Hand the page a fresh office for the current floor as a navigation snapshot (instant, no walking, no synthetic feed entries).
+  const resetOffice = () => { unsub?.(); office = new Office({ empty: true }); current = new Map(); unsub = null; };
+  const publish = () => { h.onSnapshot({ ...office.snapshot(), mode: 'ops' }, { navigation: true }); unsub = office.subscribe((ev) => h.onEvent(ev)); };
+
   const apply = (d) => {
     lastData = d;
-    floor = Math.min(Math.max(1, floor), d.site?.floors || 1);          // a floor that no longer exists falls back
+    const clamped = Math.min(Math.max(1, floor), d.site?.floors || 1);   // a floor that no longer exists falls back to the nearest one
+    const swapped = clamped !== floor;
+    if (swapped) { floor = clamped; resetOffice(); }           // fresh office: the old floor's occupants would block the new floor's desks
     const stale = !d.demo && isStale(d.generatedAt, Date.now(), d.intervalMin);
     const labelByRoom = {};
     for (const c of Object.values(d.site?.categories || {})) { if (labelByRoom[c.room]) continue; labelByRoom[c.room] = c.label; if (ROOMS[c.room]) ROOMS[c.room].label = c.label; }   // first category names a shared room
@@ -33,6 +39,7 @@ export async function connect(h) {
     const { events, next } = diffForFloor(current, records, labelByRoom, floor);
     current = next;
     for (const ev of events) { try { office.emit(ev); } catch (err) { console.warn('skipped event', ev.type, err.message); } }
+    if (swapped) publish();
     h.onMeta?.({ data: d, stale, fetchedAt: Date.now(), error: null });
   };
 
@@ -63,10 +70,9 @@ export async function connect(h) {
     setFloor: (n) => {
       floor = n;
       if (!lastData) return floor;
-      unsub?.(); office = new Office({ empty: true }); current = new Map();
+      resetOffice();
       apply(lastData);
-      h.onSnapshot({ ...office.snapshot(), mode: 'ops' });
-      unsub = office.subscribe((ev) => h.onEvent(ev));
+      publish();
       return floor;
     },
   };
