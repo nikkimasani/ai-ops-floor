@@ -42,8 +42,25 @@ numbers, descriptions, callers and assignees never enter the process, let alone 
 - If more than 1000 tickets match, the `X-Total-Count` header supplies the real count.
 - Needs a service account with read on the table; the runner must be able to reach the instance.
 
+### `azure-monitor`
+Checks an Azure Monitor **platform metric** for a Function app, App Service, API Management, etc., using the Metrics REST API
+and an app registration (client credentials). No SDK.
+```json
+{ "adapter": "azure-monitor",
+  "tenantId": "env:AZ_TENANT_ID", "clientId": "env:AZ_CLIENT_ID", "clientSecret": "env:AZ_CLIENT_SECRET",
+  "resourceId": "env:FUNC_INTAKE_RESOURCE_ID",
+  "metric": "Http5xx", "aggregation": "Total", "max": 5, "windowMin": 15 }
+```
+- Looks at the **latest datapoint in the last `windowMin` minutes** (default 15). Fails if it is above `max` or below `min` (give either or both), or if there is no recent data.
+- `aggregation`: `Average` (default), `Total`, `Count`, `Minimum`, `Maximum`. Metric names are the "Name in Rest API" column from Microsoft's *Supported metrics* pages (e.g. `Http5xx`, `HealthCheckStatus`, `FunctionExecutionCount`).
+- **Setup:** create an app registration + client secret; give it the **Monitoring Reader** role on each resource (or its resource group). Put tenant, client id, secret and resource id in Actions secrets and list them in `probe.yml`'s `env:` block.
+- Errors are generic: `authentication failed`, `not authorized (check the Monitoring Reader role)`, `HTTP 500`, `no recent data`, `metric over limit: 12 (max 5)`. Resource id, tenant, client id and tokens are never published.
+- Caveats: platform metrics lag by a minute or two; `Http5xx`-style *Total* metrics only say "errors happened recently", so pair them with an `http` health check (see `docs/FUNCTION-APP-HEALTH.md`).
+- **Application Insights** query-based checks (KQL) are not in this adapter; add them as a separate adapter if needed.
+- Not tested against a real Azure subscription: it follows the documented endpoints and is tested against a mock.
+
 ### Metrics from any adapter
 An adapter may return `metrics: { open, oldestHours, breaching }`. The probe keeps only those keys, and only finite numbers.
 
 ## Planned
-Azure Monitor / Application Insights, Azure Function health, Copilot seat usage. See `docs/issues/`.
+Application Insights (KQL) checks, Copilot seat usage. See `docs/issues/`.

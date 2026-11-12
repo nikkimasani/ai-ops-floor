@@ -3,6 +3,7 @@
 import * as http from './http.js';
 import * as fixture from './fixture.js';
 import * as servicenow from './servicenow.js';
+import * as azureMonitor from './azure-monitor.js';
 
-export const adapters = { http, fixture, servicenow };
+export const adapters = { http, fixture, servicenow, 'azure-monitor': azureMonitor };
 export const adapterNames = () => Object.keys(adapters);

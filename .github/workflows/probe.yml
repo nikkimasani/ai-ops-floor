@@ -1,7 +1,7 @@
 # Probe every service on a schedule, keep the history on the `data` branch, and publish the dashboard.
 #
-# NOT YET RUN ON GITHUB: this workflow was written and its scripts tested locally, but never executed by
-# GitHub Actions. See docs/ADOPTING.md for the one-time setup (Pages source = GitHub Actions) and first run.
+# First manual run on GitHub succeeded (demo data). See docs/ADOPTING.md for the one-time setup
+# (Pages source = GitHub Actions). Scheduled runs are unverified: check the Actions tab after the first few.
 name: probe
 on:
   schedule:
