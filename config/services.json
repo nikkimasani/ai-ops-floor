@@ -1,0 +1,30 @@
+{
+  "site": {
+    "title": "AI Ops Floor",
+    "intervalMin": 5,
+    "categories": {
+      "platform": { "label": "Platform & Gateways", "room": "boardroom" },
+      "ai-hub": { "label": "AI Hub Apps", "room": "bullpen" },
+      "azure-function": { "label": "Azure Function Apps", "room": "review" }
+    }
+  },
+  "services": [
+    { "id": "ai-gateway", "name": "AI Gateway", "category": "platform", "owner": "Platform Team", "tier": 1, "check": { "adapter": "fixture", "scenario": "steady" } },
+    { "id": "identity-broker", "name": "Identity Broker", "category": "platform", "owner": "Platform Team", "tier": 1, "check": { "adapter": "fixture", "scenario": "steady" } },
+    { "id": "model-router", "name": "Model Router", "category": "platform", "owner": "Platform Team", "tier": 1, "check": { "adapter": "fixture", "scenario": "outage-now" } },
+    { "id": "telemetry-pipeline", "name": "Telemetry Pipeline", "category": "platform", "owner": "Platform Team", "tier": 2, "check": { "adapter": "fixture", "scenario": "slowish" } },
+
+    { "id": "document-review", "name": "Document Review", "category": "ai-hub", "owner": "Team Intake", "tier": 1, "dependsOn": ["func-intake", "model-router"], "check": { "adapter": "fixture", "scenario": "outage-now" } },
+    { "id": "policy-qa", "name": "Policy Q&A", "category": "ai-hub", "owner": "HR Technology", "tier": 2, "check": { "adapter": "fixture", "scenario": "slow" } },
+    { "id": "meeting-summarizer", "name": "Meeting Summarizer", "category": "ai-hub", "owner": "Collaboration Tools", "tier": 2, "check": { "adapter": "fixture", "scenario": "steady" } },
+    { "id": "knowledge-search", "name": "Knowledge Search", "category": "ai-hub", "owner": "Knowledge Team", "tier": 1, "dependsOn": ["func-embeddings", "model-router"], "check": { "adapter": "fixture", "scenario": "outage-now" } },
+    { "id": "translation-studio", "name": "Translation Studio", "category": "ai-hub", "owner": "Localization", "tier": 3, "check": { "adapter": "fixture", "scenario": "flaky" } },
+    { "id": "contract-checker", "name": "Contract Checker", "category": "ai-hub", "owner": "Legal Operations", "tier": 2, "check": { "adapter": "fixture", "scenario": "recovered" } },
+    { "id": "code-helper", "name": "Code Helper", "category": "ai-hub", "owner": "Developer Experience", "tier": 2, "check": { "adapter": "fixture", "scenario": "steady" },
+      "maintenance": [{ "from": "now-10m", "to": "now+50m", "note": "planned upgrade window" }] },
+
+    { "id": "func-intake", "name": "func-intake", "category": "azure-function", "owner": "Team Intake", "tier": 1, "dependsOn": ["identity-broker"], "check": { "adapter": "fixture", "scenario": "steady" } },
+    { "id": "func-embeddings", "name": "func-embeddings", "category": "azure-function", "owner": "Knowledge Team", "tier": 2, "check": { "adapter": "fixture", "scenario": "slowish" } },
+    { "id": "func-notify", "name": "func-notify", "category": "azure-function", "owner": "Platform Team", "tier": 3, "check": { "adapter": "fixture", "scenario": "steady" } }
+  ]
+}

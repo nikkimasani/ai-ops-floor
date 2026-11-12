@@ -1,0 +1,36 @@
+{
+  "_readme": "Copy to config/services.json and replace the demo services. Every URL/secret here is a PLACEHOLDER. Secrets are referenced as env:NAME and come from GitHub Actions secrets: never write a real token in this file.",
+  "site": {
+    "title": "AI Ops Floor",
+    "intervalMin": 5,
+    "categories": {
+      "ai-hub": { "label": "AI Hub Apps", "room": "bullpen" },
+      "azure-function": { "label": "Azure Function Apps", "room": "review" }
+    }
+  },
+  "services": [
+    {
+      "id": "resume-review",
+      "name": "Resume Review",
+      "category": "ai-hub",
+      "owner": "Your Team Name",
+      "tier": 1,
+      "check": { "adapter": "http", "url": "https://REPLACE-ME.example.invalid/health", "expectStatus": 200, "timeoutMs": 8000 },
+      "thresholds": { "degradedMs": 2000, "downAfter": 3 }
+    },
+    {
+      "id": "func-example",
+      "name": "func-example",
+      "category": "azure-function",
+      "owner": "Your Team Name",
+      "tier": 2,
+      "dependsOn": [],
+      "check": {
+        "adapter": "http",
+        "url": "https://REPLACE-ME.example.invalid/api/health?code=env:FUNC_EXAMPLE_KEY",
+        "headers": { "x-functions-key": "env:FUNC_EXAMPLE_KEY" },
+        "expectBodyIncludes": "ok"
+      }
+    }
+  ]
+}
