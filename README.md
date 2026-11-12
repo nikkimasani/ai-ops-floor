@@ -60,7 +60,7 @@ Two rules worth knowing:
 ## Using GitHub Copilot on this repo
 
 Start with [AGENTS.md](AGENTS.md) and [.github/copilot-instructions.md](.github/copilot-instructions.md) (project
-rules), then [docs/ADAPTERS.md](docs/ADAPTERS.md) and [docs/FUNCTION-APP-HEALTH.md](docs/FUNCTION-APP-HEALTH.md). The backlog is in [docs/issues/](docs/issues/): small,
+rules), then [docs/ADAPTERS.md](docs/ADAPTERS.md) [docs/FUNCTION-APP-HEALTH.md](docs/FUNCTION-APP-HEALTH.md) and (private repos only) [docs/SHARED-ACKS.md](docs/SHARED-ACKS.md). The backlog is in [docs/issues/](docs/issues/): small,
 self-contained tasks with acceptance criteria. `scripts/create-issues.sh` files them with the GitHub CLI.
 
 ## Layout

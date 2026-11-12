@@ -1,5 +1,5 @@
 // The Board: every service at a glance, with filters, uptime, a latency sparkline and recent incidents.
-import { STATUS_LABEL, pct, ago, dur } from './ops.js';
+import { STATUS_LABEL, pct, ago, dur, ackOf, ackLabel, ackLink } from './ops.js';
 import { fmtMs, DAY, dependencyGraph } from './shared/ops.js';
 
 const $ = (id) => document.getElementById(id);
@@ -85,6 +85,7 @@ function render() {
         <div class="btop"><b>${esc(s.name)}</b><span class="spill ${HEALTH_CLASS[s.health]}">${s.health}</span></div>
         <div class="bsub">${esc(cats[s.category]?.label || s.category)} · ${esc(s.owner || '—')}${s.tier ? ` · Tier ${s.tier}` : ''}</div>
         <div class="bdetail">${esc(s.detail || '')}</div>
+        ${ackOf(s.id) ? `<div class="ackd">${ackLabel(ackOf(s.id))}</div>` : (s.ackIssue && ackLink(s.ackIssue) ? `<a class="ackl" target="_blank" rel="noopener" href="${esc(ackLink(s.ackIssue))}">Acknowledge on GitHub ↗</a>` : '')}
         ${s.metrics ? `<div class="bmetrics">${Object.keys(METRIC_LABELS).filter((k) => s.metrics[k] != null).map((k) => `<span>${METRIC_LABELS[k]} <b>${fmtMetric(k, s.metrics[k])}</b></span>`).join('')}</div>` : ''}
         ${sparkline(history[s.id], now)}
         <div class="bstats"><span>24h <b>${pct(s.uptime24h)}</b></span><span>7d <b>${pct(s.uptime7d)}</b></span><span>${s.latencyMs != null ? `<b>${fmtMs(s.latencyMs)}</b>` : '<b>—</b>'}</span><span class="muted">${ago(s.since).replace(' ago', '')} in state</span></div>

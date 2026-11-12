@@ -1,6 +1,6 @@
 # Design note: shared acknowledgements (issue #9)
 
-**Status: proposal, no code yet.** Decide the open questions at the bottom, then implement behind a flag.
+**Status: decided and implemented** (behind `site.sharedAcks`, off by default). Setup: [SHARED-ACKS.md](SHARED-ACKS.md).
 
 ## Problem
 "Acknowledge" is stored in the viewer's browser, so teammates can't see who is on an outage and two people may both chase it.
@@ -41,8 +41,8 @@
 - **Workflow races** (two acks at once): `concurrency` group on the ack workflow, first ack wins, later ones append to `note`.
 - **Delay:** an ack appears after the workflow finishes (about 1-2 minutes). The button should say "ack requested" immediately (local) until the shared ack shows up.
 
-## Open questions (need a decision before building)
-1. Is a **private company-org repo with issues enabled** acceptable to your team for incident tracking?
-2. Should **Teams/Slack alerts** (already built) link to the tracking issue so people can `/ack` from the alert?
-3. Who may ack: anyone with triage, or only an `ops` team? (Default: write or triage.)
-4. Do you want the tracking issue to double as the incident record (comments, resolution notes)? (Default: yes.)
+## Decisions
+1. **Private company-org repo with issues enabled:** yes.
+2. **Alerts link to the incident issue** so people can `/ack` from the alert: yes (the webhook message gets the issue URL appended).
+3. **Who may acknowledge: only the Enterprise AI team.** Implemented as the repo permission check (write or triage), so access is controlled by giving *only that team* write or triage on the repo and everyone else read. No org-wide token is needed.
+4. **The issue is the incident record** (notes as comments; closed automatically with "Recovered after …" on recovery): yes.

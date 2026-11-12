@@ -155,7 +155,7 @@ export function appearanceFor(id) {
   return { color: DRESS[h % DRESS.length], accent: ACCENT[(h >> 3) % ACCENT.length], hair: HAIR[(h >> 5) % HAIR.length], hairColor: HAIR_COLORS[(h >> 7) % HAIR_COLORS.length] };
 }
 
-export const metaOf = (r) => ({ ops: true, category: r.category, owner: r.owner, tier: r.tier, health: r.health, latencyMs: r.latencyMs, uptime24h: r.uptime24h, uptime7d: r.uptime7d, lastCheck: r.lastCheck, since: r.since, rootCause: r.rootCause });
+export const metaOf = (r) => ({ ops: true, category: r.category, owner: r.owner, tier: r.tier, health: r.health, latencyMs: r.latencyMs, uptime24h: r.uptime24h, uptime7d: r.uptime7d, lastCheck: r.lastCheck, since: r.since, rootCause: r.rootCause, ackIssue: r.ackIssue });
 
 /**
  * Turn a new snapshot into office events, given what the floor currently shows (`current`: id -> record).

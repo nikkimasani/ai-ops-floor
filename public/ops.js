@@ -28,7 +28,18 @@ export function noteTransition(prev, a, push, nm) {
   }
 }
 
-export const actionButtons = (a, b) => (['dark', 'blocked'].includes(a.status) ? b('Acknowledge ✓', 'ack', '', 'mint') : '');
+let sharedAcks = {}, repo = '';
+/** Shared acknowledgements ("who is on it"): { serviceId: { by, at, note } }. Empty unless site.sharedAcks is on. */
+export const ackOf = (id) => sharedAcks[id] || null;
+export const ackLabel = (k) => (k ? `✓ Acknowledged by @${esc(k.by)}${k.also?.length ? ` +${k.also.length}` : ''} · ${ago(k.at)}${k.note ? ` · “${esc(k.note)}”` : ''}` : '');
+export const ackLink = (issue) => (repo && issue ? `https://github.com/${repo}/issues/${Number(issue)}#new_comment_field` : '');
+export function actionButtons(a, b) {
+  if (!['dark', 'blocked'].includes(a.status)) return '';
+  const k = ackOf(a.id), link = ackLink(a.meta?.ackIssue);
+  if (k) return `<span class="ackd">${ackLabel(k)}</span>`;
+  const gh = link ? `<a class="abtn alt" target="_blank" rel="noopener" href="${esc(link)}">Acknowledge on GitHub ↗</a>` : '';
+  return b('Acknowledge ✓', 'ack', '', 'mint') + gh;     // the button hides it for this browser only; the GitHub link tells the team
+}
 export const inboxText = (a, nm) => (a.status === 'dark' ? `${nm(a)} is DOWN: ${a.note || a.task || ''}` : `${nm(a)} is failing: ${a.blocker || a.task || ''}`);
 
 /** The service card shown when you tap a character. */
@@ -40,6 +51,7 @@ export function inspectHtml(a, { nm, roomLabel, feed, buttons }) {
     ['last check', ago(m.lastCheck)], ['owner', esc(m.owner || '—')], ['tier', m.tier ? `Tier ${m.tier}` : '—'],
   ];
   if (m.rootCause) rows.splice(2, 0, ['root cause', esc(m.rootCause)]);
+  if (ackOf(a.id)) rows.splice(2, 0, ['acknowledged', ackLabel(ackOf(a.id)).replace('✓ Acknowledged by ', '')]);
   return `<div class="shead"><div><h3>${name}</h3><div class="role">${esc(m.category || a.role)} · ${esc(roomLabel)}</div></div><button class="icon sm" data-close-inspect>✕</button></div>
     <dl>${rows.filter(([, v]) => v !== '').map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
     <div class="row">${buttons}<button data-look="${a.id}" class="abtn alt">✨ Customize</button></div>
@@ -48,6 +60,7 @@ export function inspectHtml(a, { nm, roomLabel, feed, buttons }) {
 
 /** Header chip, stale banner and data-age badge. */
 export function onMeta(m, $, now = Date.now()) {
+  sharedAcks = m.acks || {}; repo = m.data?.site?.repo || '';
   const d = m.data, banner = $('staleBanner');
   if (!d) { $('mode').textContent = 'no data'; $('mode').className = 'badge'; banner.hidden = false; banner.textContent = m.error ? `Can’t load status data (${m.error}). Showing what we last had.` : 'No status data yet.'; return; }
   const s = d.summary || {}, bad = (s.failing || 0) + (s.down || 0);
