@@ -19,16 +19,18 @@ async function load() {
 }
 
 export async function connect(h) {
-  const office = new Office({ empty: true });
-  let current = new Map(), subscribed = false;
+  let office = new Office({ empty: true }), unsub = null;
+  let current = new Map(), subscribed = false, floor = h.floor || 1, lastData = null;
 
   const apply = (d) => {
+    lastData = d;
+    floor = Math.min(Math.max(1, floor), d.site?.floors || 1);          // a floor that no longer exists falls back
     const stale = !d.demo && isStale(d.generatedAt, Date.now(), d.intervalMin);
     const labelByRoom = {};
     for (const c of Object.values(d.site?.categories || {})) { if (labelByRoom[c.room]) continue; labelByRoom[c.room] = c.label; if (ROOMS[c.room]) ROOMS[c.room].label = c.label; }   // first category names a shared room
     // Stale data must never read as "all healthy": every service drops to "unknown" until probes resume.
     const records = stale ? d.services.map((s) => ({ ...s, health: 'unknown', detail: 'data is stale: probes may have stopped' })) : d.services;
-    const { events, next } = diffForFloor(current, records, labelByRoom);
+    const { events, next } = diffForFloor(current, records, labelByRoom, floor);
     current = next;
     for (const ev of events) { try { office.emit(ev); } catch (err) { console.warn('skipped event', ev.type, err.message); } }
     h.onMeta?.({ data: d, stale, fetchedAt: Date.now(), error: null });
@@ -41,7 +43,7 @@ export async function connect(h) {
     first = null;
   }
   if (first) { apply(first); h.onSnapshot({ ...office.snapshot(), mode: 'ops' }); }
-  office.subscribe((ev) => h.onEvent(ev)); subscribed = true;
+  unsub = office.subscribe((ev) => h.onEvent(ev)); subscribed = true;
 
   const tick = async () => {
     try { apply(await load()); }
@@ -56,5 +58,16 @@ export async function connect(h) {
     walkin: async () => ({ error: 'view-only' }),
     dispatch: async () => ({ error: 'view-only' }),
     refresh: tick,
+    floor: () => floor,
+    // Swap floors without refetching: a fresh office for the new floor, handed to the page as a snapshot (instant, no walking and no feed noise).
+    setFloor: (n) => {
+      floor = n;
+      if (!lastData) return floor;
+      unsub?.(); office = new Office({ empty: true }); current = new Map();
+      apply(lastData);
+      h.onSnapshot({ ...office.snapshot(), mode: 'ops' });
+      unsub = office.subscribe((ev) => h.onEvent(ev));
+      return floor;
+    },
   };
 }

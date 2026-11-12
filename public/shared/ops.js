@@ -116,7 +116,38 @@ export function rebaseDemo(d, shiftMs) {
 }
 
 /** Fields that are safe to publish. Endpoints, headers and credentials are never part of a record. */
-export const PUBLIC_FIELDS = ['id', 'name', 'category', 'room', 'owner', 'tier', 'health', 'detail', 'latencyMs', 'uptime24h', 'uptime7d', 'lastCheck', 'since', 'consecutiveFailures', 'rootCause', 'onFloor', 'metrics', 'dependsOn'];
+export const PUBLIC_FIELDS = ['id', 'name', 'category', 'room', 'owner', 'tier', 'health', 'detail', 'latencyMs', 'uptime24h', 'uptime7d', 'lastCheck', 'since', 'consecutiveFailures', 'rootCause', 'onFloor', 'metrics', 'dependsOn', 'floor'];
+// ---------- floors ----------
+/**
+ * Which floor each service sits on. Every floor has the same desks (`seats`: [{ room }]). A service goes to the first
+ * floor with a free desk in its own room, else any free desk on that floor, else the next floor. `onFloor: false`
+ * means Board only (no floor). An explicit `floor: N` in config is honoured. Returns Map id -> floor number.
+ */
+export function assignFloors(services, categories, seats) {
+  const cap = {};
+  for (const s of seats) cap[s.room] = (cap[s.room] || 0) + 1;
+  const free = [];                                                    // free[f - 1] = { room: desks left }
+  const floorFree = (f) => (free[f - 1] ||= { ...cap });
+  const take = (f, room) => { const left = floorFree(f); if (left[room] > 0) { left[room]--; return true; } return false; };
+  const out = new Map();
+  for (const s of services) {                                         // explicit floors first so they keep their desks
+    if (s.onFloor === false || !Number.isInteger(s.floor) || s.floor < 1) continue;
+    const room = categories[s.category]?.room;
+    if (!take(s.floor, room)) { const left = floorFree(s.floor); const any = Object.keys(left).find((r) => left[r] > 0); if (any) left[any]--; }
+    out.set(s.id, s.floor);
+  }
+  for (const s of services) {
+    if (s.onFloor === false || out.has(s.id)) continue;
+    const room = categories[s.category]?.room;
+    for (let f = 1; ; f++) {
+      if (take(f, room)) { out.set(s.id, f); break; }
+      const left = floorFree(f), any = Object.keys(left).find((r) => left[r] > 0);
+      if (any) { left[any]--; out.set(s.id, f); break; }
+    }
+  }
+  return out;
+}
+
 // ---------- dependency graph ----------
 /**
  * Layered dependency graph for the Board. Layer 0 = services that depend on nothing; a service sits one layer
@@ -161,9 +192,9 @@ export const metaOf = (r) => ({ ops: true, category: r.category, owner: r.owner,
  * Turn a new snapshot into office events, given what the floor currently shows (`current`: id -> record).
  * Only services marked onFloor get a character; the Board view always shows everything.
  */
-export function diffForFloor(current, records, roomLabels = {}) {
+export function diffForFloor(current, records, roomLabels = {}, floor = 1) {
   const events = [], next = new Map();
-  for (const r of records.filter((x) => x.onFloor !== false)) {
+  for (const r of records.filter((x) => x.onFloor !== false && (x.floor ?? 1) === floor)) {
     next.set(r.id, r);
     const prev = current.get(r.id), floor = FLOOR_STATUS[r.health];
     if (!prev) {

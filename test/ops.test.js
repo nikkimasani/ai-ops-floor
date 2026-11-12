@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dependencyGraph, deriveHealth, parseWhen, activeMaintenance, uptime, trimHistory, updateIncidents, mttrMs, summarize, isStale, toPublic, diffForFloor, rebaseDemo, appearanceFor, fmtMs, SAMPLE, DAY, FLOOR_STATUS } from '../public/shared/ops.js';
+import { assignFloors, dependencyGraph, deriveHealth, parseWhen, activeMaintenance, uptime, trimHistory, updateIncidents, mttrMs, summarize, isStale, toPublic, diffForFloor, rebaseDemo, appearanceFor, fmtMs, SAMPLE, DAY, FLOOR_STATUS } from '../public/shared/ops.js';
 
 const NOW = Date.UTC(2026, 10, 12, 12, 0, 0);
 const svc = (extra = {}) => ({ id: 's', name: 'Svc', ...extra });
@@ -164,4 +164,32 @@ test('dependencyGraph: unknown dependencies, self-dependencies and cycles are su
   const g = dependencyGraph([gnode('a', 'down', ['b']), gnode('b', 'failing', ['a'])]);
   assert.ok(g.nodes.length === 2 && g.edges.length === 1, 'the back edge of the cycle is dropped');
   assert.equal(dependencyGraph([]).layers, 0);
+});
+
+// ---------- floors ----------
+const SEATS3 = [{ room: 'a' }, { room: 'a' }, { room: 'b' }];            // floor capacity: 2 in a, 1 in b
+const CATS = { x: { room: 'a' }, y: { room: 'b' } };
+const fs = (id, category, extra = {}) => ({ id, category, ...extra });
+
+test('assignFloors: fills a floor room by room, spills to the next floor when it is full', () => {
+  const f = assignFloors([fs('1', 'x'), fs('2', 'x'), fs('3', 'x'), fs('4', 'y'), fs('5', 'y')], CATS, SEATS3);
+  // 3rd x service: room a is full but b has a desk, so it overflows into b on floor 1; then floor 1 is full
+  assert.deepEqual([...f], [['1', 1], ['2', 1], ['3', 1], ['4', 2], ['5', 2]]);
+});
+
+test('assignFloors: a few services stay on floor 1; onFloor:false gets no floor; explicit floors are honoured', () => {
+  assert.deepEqual([...assignFloors([fs('1', 'x'), fs('2', 'y')], CATS, SEATS3)], [['1', 1], ['2', 1]]);
+  const f = assignFloors([fs('1', 'x'), fs('hidden', 'x', { onFloor: false }), fs('3', 'x', { floor: 3 })], CATS, SEATS3);
+  assert.equal(f.has('hidden'), false);
+  assert.equal(f.get('3'), 3);
+  assert.equal(f.get('1'), 1);
+});
+
+test('diffForFloor only shows the active floor and swaps characters when the floor changes', () => {
+  const recs = [{ id: 'a', name: 'A', health: 'healthy', room: 'bullpen', floor: 1, onFloor: true }, { id: 'b', name: 'B', health: 'down', room: 'bullpen', floor: 2, onFloor: true }];
+  const one = diffForFloor(new Map(), recs, {}, 1);
+  assert.deepEqual(one.events.filter((e) => e.type === 'agent_join').map((e) => e.info.id), ['a']);
+  const two = diffForFloor(one.next, recs, {}, 2);
+  assert.deepEqual(two.events.filter((e) => e.type === 'agent_leave').map((e) => e.id), ['a']);
+  assert.deepEqual(two.events.filter((e) => e.type === 'agent_join').map((e) => e.info.id), ['b']);
 });

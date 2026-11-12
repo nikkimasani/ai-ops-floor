@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { adapters as defaultAdapters } from './adapters/index.js';
 import { loadConfig } from './config.js';
 import { planAlerts, sendAlerts } from './alerts.js';
-import { DEFAULTS, SAMPLE, deriveHealth, mttrMs, summarize, toPublic, trimHistory, uptime, updateIncidents, activeMaintenance, DAY } from '../public/shared/ops.js';
+import { DEFAULTS, SAMPLE, deriveHealth, mttrMs, summarize, toPublic, trimHistory, uptime, updateIncidents, activeMaintenance, assignFloors, DAY } from '../public/shared/ops.js';
 import { SEATS } from '../public/shared/layout.js';
 
 // Adapters may report a few counters (queue size, ages). Only known keys with finite numbers get through.
@@ -47,9 +47,9 @@ export async function runOnce({ config, state = {}, now = Date.now(), adapters =
 
   const results = Object.fromEntries(await Promise.all(config.services.map(async (s) => [s.id, await runCheck(s, { adapters, now, anchor, env, timeoutMs })])));
   const byId = Object.fromEntries(config.services.map((s) => [s.id, s]));
-  const seats = SEATS.length;
+  const floors = assignFloors(config.services, config.site.categories, SEATS);
 
-  const records = config.services.map((s, i) => {
+  const records = config.services.map((s) => {
     const prev = prevMap.get(s.id);
     const result = results[s.id];
     const depsFailing = (s.dependsOn || []).filter((d) => results[d] && !results[d].ok && !activeMaintenance(byId[d], now, anchor ?? now)).map((d) => ({ id: d, name: byId[d].name }));
@@ -63,7 +63,7 @@ export async function runOnce({ config, state = {}, now = Date.now(), adapters =
       uptime24h: uptime(history[s.id], DAY, now), uptime7d: uptime(history[s.id], 7 * DAY, now),
       lastCheck: now, since: prev && prev.health === h.health ? prev.since : now,
       consecutiveFailures: h.consecutiveFailures, rootCause: h.rootCause, dependsOn: s.dependsOn?.length ? s.dependsOn : undefined,
-      onFloor: s.onFloor !== false && i < seats, metrics: result.metrics,
+      onFloor: floors.has(s.id), floor: floors.get(s.id), metrics: result.metrics,
     };
     updateIncidents(incidents, s, prev?.health, rec, now);
     return rec;
@@ -72,7 +72,7 @@ export async function runOnce({ config, state = {}, now = Date.now(), adapters =
   const keepIncidents = incidents.filter((i) => i.end === null || i.end > now - 30 * DAY).slice(-200);
   const status = {
     generatedAt: now, intervalMin, demo: Boolean(config.site.demo),
-    site: { title: config.site.title || 'AI Ops Floor', categories: config.site.categories },
+    site: { title: config.site.title || 'AI Ops Floor', categories: config.site.categories, floors: Math.max(1, ...floors.values()) },
     summary: summarize(records), mttrMs: mttrMs(keepIncidents, now), openIncidents: keepIncidents.filter((i) => i.end === null).length,
     services: records.map(toPublic),
   };

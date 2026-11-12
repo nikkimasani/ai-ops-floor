@@ -465,12 +465,20 @@ edit.initEdit(C); fun.initFun(C); looks.initLooks(C); toolbox.initToolbox(C);
 window.agv = C;     // handy for poking around in the console
 resize(); renderClock(); setInterval(renderClock, 15000);
 setInterval(() => { if (!$('inboxModal').hidden) renderInbox(); }, 5000);
-S.showOnFloor = (id) => { if (S.agents[id]) { select(id); focus(id); } };
+S.floor = Number(store.get('floor', 1)) || 1;
+S.switchFloor = (n) => { S.floor = n; store.set('floor', n); S.source?.setFloor(n); ops.renderFloors(S.opsData, $, S.floor); refresh(); };
+S.showOnFloor = (id) => {
+  const f = S.opsData?.data?.services.find((s) => s.id === id)?.floor ?? 1;
+  if (f !== S.floor) S.switchFloor(f);                                 // the service may live on another floor
+  if (S.agents[id]) { select(id); focus(id); }
+};
+$('floors').onclick = (e) => { const b = e.target.closest('[data-floor]'); if (b) S.switchFloor(Number(b.dataset.floor)); };
 board.init(S);
 $('opsSummary').onclick = () => board.open();
 connect({
+  floor: S.floor,
   onSnapshot: applySnapshot, onEvent: applyEvent,
-  onMeta: (m) => { if (m.data || !S.opsData?.data) S.opsData = m; else S.opsData = { ...S.opsData, stale: true, error: m.error }; ops.onMeta(S.opsData, $); board.update(); },
+  onMeta: (m) => { if (m.data || !S.opsData?.data) S.opsData = m; else S.opsData = { ...S.opsData, stale: true, error: m.error }; ops.onMeta(S.opsData, $); S.floor = S.source?.floor?.() ?? S.floor; ops.renderFloors(S.opsData, $, S.floor); board.update(); },
 }).then((src) => { S.source = src; });
 setInterval(() => { if (S.opsData) ops.onMeta(S.opsData, $); }, 15000);          // keep "updated 3m ago" honest between polls
 requestAnimationFrame(frame);
