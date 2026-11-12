@@ -62,7 +62,7 @@ export async function runOnce({ config, state = {}, now = Date.now(), adapters =
       health: h.health, detail: h.detail, latencyMs: result.ok ? Math.round(result.ms) : null,
       uptime24h: uptime(history[s.id], DAY, now), uptime7d: uptime(history[s.id], 7 * DAY, now),
       lastCheck: now, since: prev && prev.health === h.health ? prev.since : now,
-      consecutiveFailures: h.consecutiveFailures, rootCause: h.rootCause,
+      consecutiveFailures: h.consecutiveFailures, rootCause: h.rootCause, dependsOn: s.dependsOn?.length ? s.dependsOn : undefined,
       onFloor: s.onFloor !== false && i < seats, metrics: result.metrics,
     };
     updateIncidents(incidents, s, prev?.health, rec, now);

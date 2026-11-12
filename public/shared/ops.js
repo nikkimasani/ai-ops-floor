@@ -116,7 +116,35 @@ export function rebaseDemo(d, shiftMs) {
 }
 
 /** Fields that are safe to publish. Endpoints, headers and credentials are never part of a record. */
-export const PUBLIC_FIELDS = ['id', 'name', 'category', 'room', 'owner', 'tier', 'health', 'detail', 'latencyMs', 'uptime24h', 'uptime7d', 'lastCheck', 'since', 'consecutiveFailures', 'rootCause', 'onFloor', 'metrics'];
+export const PUBLIC_FIELDS = ['id', 'name', 'category', 'room', 'owner', 'tier', 'health', 'detail', 'latencyMs', 'uptime24h', 'uptime7d', 'lastCheck', 'since', 'consecutiveFailures', 'rootCause', 'onFloor', 'metrics', 'dependsOn'];
+// ---------- dependency graph ----------
+/**
+ * Layered dependency graph for the Board. Layer 0 = services that depend on nothing; a service sits one layer
+ * after the deepest thing it waits on. Unknown dependency ids are ignored; cycles can't loop forever (back
+ * edges are dropped). `rootCauses` = failing/down services that no failing service of theirs explains.
+ */
+export function dependencyGraph(services) {
+  const byId = new Map(services.map((s) => [s.id, s]));
+  const deps = (s) => (s.dependsOn || []).filter((d) => byId.has(d) && d !== s.id);
+  const layer = new Map(), visiting = new Set();
+  const depth = (id) => {
+    if (layer.has(id)) return layer.get(id);
+    if (visiting.has(id)) return 0;                                  // cycle: break it here
+    visiting.add(id);
+    const l = Math.max(-1, ...deps(byId.get(id)).map(depth)) + 1;
+    visiting.delete(id); layer.set(id, l);
+    return l;
+  };
+  const involved = new Set();
+  for (const s of services) for (const d of deps(s)) { involved.add(s.id); involved.add(d); }
+  const nodes = services.filter((s) => involved.has(s.id)).map((s) => ({ id: s.id, name: s.name, health: s.health, layer: depth(s.id) }));
+  const bad = (h) => h === 'down' || h === 'failing';
+  const edges = [];
+  for (const s of services) for (const d of deps(s)) if (layer.get(d) < layer.get(s.id)) edges.push({ from: d, to: s.id, bad: bad(byId.get(d).health) });
+  const rootCauses = nodes.filter((n) => n.health === 'down' || (n.health === 'failing' && !deps(byId.get(n.id)).some((d) => bad(byId.get(d).health)))).map((n) => n.id);
+  return { nodes, edges, rootCauses, layers: nodes.length ? Math.max(...nodes.map((n) => n.layer)) + 1 : 0 };
+}
+
 export const toPublic = (rec) => Object.fromEntries(PUBLIC_FIELDS.filter((k) => rec[k] !== undefined).map((k) => [k, rec[k]]));
 
 // ---------- bridging to the office floor ----------

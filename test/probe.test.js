@@ -140,3 +140,10 @@ test('adapter metrics are published only for known keys and only as numbers', as
   assert.deepEqual(rec(state, 'q').metrics, { open: 7 });
   assert.ok(!JSON.stringify(state).includes('INC0012345'));
 });
+
+test('published records carry dependsOn (ids only) so the Board can draw the graph', async () => {
+  const config = cfg([{ id: 'up' }, { id: 'dep', dependsOn: ['up'] }, { id: 'alone' }]);
+  const state = await runOnce({ config, state: {}, now: T0, adapters: scripted({ up: [ok()], dep: [ok()], alone: [ok()] }) });
+  assert.deepEqual(rec(state, 'dep').dependsOn, ['up']);
+  assert.equal('dependsOn' in rec(state, 'alone'), false);
+});
