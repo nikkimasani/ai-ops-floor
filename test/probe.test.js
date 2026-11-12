@@ -122,7 +122,10 @@ test('demo data replays 48h through the real pipeline and tells a coherent story
   assert.ok(state.incidents.some((i) => i.service === 'model-router' && i.end === null), 'model-router incident is open');
   assert.ok(state.incidents.some((i) => i.service === 'contract-checker' && i.end !== null), 'contract-checker incident was resolved');
   assert.ok(get('contract-checker').uptime24h < 1 && get('contract-checker').uptime24h > 0.9);
-  assert.equal(state.status.services.length, 15);
+  assert.equal(state.status.services.length, 16);
+  assert.equal(get('copilot-seats').health, 'failing');
+  assert.match(get('copilot-seats').detail, /^seat usage over limit: \d+% inactive/);
+  assert.equal(get('copilot-seats').metrics.seats, 412);
   assert.equal(get('licence-requests').health, 'failing');
   assert.match(get('licence-requests').detail, /^queue over limit: \d+ open/);
   assert.ok(get('licence-requests').metrics.open > 30);

@@ -14,7 +14,7 @@ import { DEFAULTS, SAMPLE, deriveHealth, mttrMs, summarize, toPublic, trimHistor
 import { SEATS } from '../public/shared/layout.js';
 
 // Adapters may report a few counters (queue size, ages). Only known keys with finite numbers get through.
-export const METRIC_KEYS = ['open', 'oldestHours', 'breaching'];
+export const METRIC_KEYS = ['open', 'oldestHours', 'breaching', 'seats', 'inactiveSeats', 'pendingCancellation'];
 export const cleanMetrics = (m) => {
   const out = {};
   for (const k of METRIC_KEYS) if (Number.isFinite(m?.[k])) out[k] = Math.round(m[k]);

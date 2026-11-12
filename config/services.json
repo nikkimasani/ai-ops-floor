@@ -28,6 +28,8 @@
     { "id": "func-embeddings", "name": "func-embeddings", "category": "azure-function", "owner": "Knowledge Team", "tier": 2, "check": { "adapter": "fixture", "scenario": "slowish" } },
     { "id": "func-notify", "name": "func-notify", "category": "azure-function", "owner": "Platform Team", "tier": 3, "check": { "adapter": "fixture", "scenario": "steady" } },
     { "id": "licence-requests", "name": "Licence Requests Queue", "category": "ops-queue", "owner": "AI Ops", "tier": 2,
-      "check": { "adapter": "fixture", "scenario": "queue-backlog" }, "thresholds": { "downAfter": 9999 } }
+      "check": { "adapter": "fixture", "scenario": "queue-backlog" }, "thresholds": { "downAfter": 9999 } },
+    { "id": "copilot-seats", "name": "Copilot Seat Usage", "category": "ops-queue", "owner": "AI Ops", "tier": 3,
+      "check": { "adapter": "fixture", "scenario": "seats-idle" }, "thresholds": { "downAfter": 9999 } }
   ]
 }

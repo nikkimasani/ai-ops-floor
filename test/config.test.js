@@ -60,3 +60,11 @@ test('azure-monitor checks need credentials, a resource, a metric and a limit', 
   assert.match(validateConfig(mk(full)).join('\n'), /needs max and\/or min/);
   assert.deepEqual(validateConfig(mk({ ...full, max: 5 })), []);
 });
+
+test('copilot-seats checks need org, token and a limit', async () => {
+  const { validateConfig } = await import('../src/config.js');
+  const mk = (check) => ({ site: { categories: { q: { label: 'Q', room: 'bullpen' } } }, services: [{ id: 'c1', name: 'C', category: 'q', check: { adapter: 'copilot-seats', ...check } }] });
+  assert.match(validateConfig(mk({ org: 'env:A' })).join('\n'), /copilot-seats check needs org and token/);
+  assert.match(validateConfig(mk({ org: 'env:A', token: 'env:B' })).join('\n'), /needs maxSeats and\/or maxInactivePct/);
+  assert.deepEqual(validateConfig(mk({ org: 'env:A', token: 'env:B', maxSeats: 10 })), []);
+});

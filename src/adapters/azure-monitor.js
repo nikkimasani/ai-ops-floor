@@ -16,12 +16,9 @@ import { resolveEnv } from './http.js';
 
 const API_VERSION = '2023-10-01';
 const AGG_FIELD = { Average: 'average', Total: 'total', Count: 'count', Minimum: 'minimum', Maximum: 'maximum' };
-const tokenCache = new Map();   // key -> { token, expiresAt }; one probe run = one process, so this just avoids a token per service
+const tokenCache = new Map();   // key -> Promise<{ token, expiresAt }>. The probe starts all checks at once, so we cache the in-flight request
 
-async function getToken({ tenantId, clientId, clientSecret }, doFetch, signal, now) {
-  const key = `${tenantId}|${clientId}`;
-  const hit = tokenCache.get(key);
-  if (hit && hit.expiresAt > now + 60000) return hit.token;
+async function requestToken({ tenantId, clientId, clientSecret }, doFetch, signal, now) {
   const res = await doFetch(`https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`, {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal,
     body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret, scope: 'https://management.azure.com/.default' }),
@@ -29,8 +26,20 @@ async function getToken({ tenantId, clientId, clientSecret }, doFetch, signal, n
   if (!res.ok) throw Object.assign(new Error('auth'), { auth: res.status });
   const body = await res.json();
   if (!body?.access_token) throw Object.assign(new Error('auth'), { auth: 0 });
-  tokenCache.set(key, { token: body.access_token, expiresAt: now + (Number(body.expires_in) || 3000) * 1000 });
-  return body.access_token;
+  return { token: body.access_token, expiresAt: now + (Number(body.expires_in) || 3000) * 1000 };
+}
+
+async function getToken(creds, doFetch, signal, now) {
+  const key = `${creds.tenantId}|${creds.clientId}`;
+  let pending = tokenCache.get(key);
+  if (pending) {
+    const hit = await pending.catch(() => null);                  // a failed request is never reused
+    if (hit && hit.expiresAt > now + 60000) return hit.token;
+    if (tokenCache.get(key) === pending) tokenCache.delete(key);
+  }
+  pending = requestToken(creds, doFetch, signal, now);
+  tokenCache.set(key, pending);
+  try { return (await pending).token; } catch (err) { if (tokenCache.get(key) === pending) tokenCache.delete(key); throw err; }
 }
 
 /** Pure: latest non-null datapoint of the metric -> ok / reason. */

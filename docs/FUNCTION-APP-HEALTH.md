@@ -25,7 +25,7 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 @app.route(route="health", methods=["GET"])
 def health(req: func.HttpRequest) -> func.HttpResponse:
     ok = bool(os.environ.get("MODEL_ENDPOINT"))               # replace with a real, cheap check
-    return func.HttpResponse(json.dumps({"status": "ok" if ok else "degraded"}), status_code=200 if ok else 503, mimetype="application/json")
+    return func.HttpResponse(json.dumps({"status": "ok" if ok else "degraded"}, separators=(",", ":")), status_code=200 if ok else 503, mimetype="application/json")
 ```
 
 ## 2. Wire it up
@@ -43,6 +43,7 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
   "thresholds": { "degradedMs": 4000, "downAfter": 3 }
 }
 ```
+`expectBodyIncludes` is an exact substring match, so the body must contain exactly `"status":"ok"` (no space after the colon: that is why the Python example uses compact `separators`).
 Use `env:` for the URL too if the app name itself is internal. Add the secrets in repo Settings → Secrets and variables → Actions, and
 pass them to the probe step in `.github/workflows/probe.yml` (`env:` block).
 

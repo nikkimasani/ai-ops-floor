@@ -1,5 +1,5 @@
 // Deterministic fake results, so the whole pipeline (and the demo dashboard) works with no real systems.
-// scenario: steady | slow | slowish | flaky | outage-now | recovered | queue-backlog
+// scenario: steady | slow | slowish | flaky | outage-now | recovered | queue-backlog | seats-idle
 const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 function rng(seed) {   // mulberry32
   let a = seed >>> 0;
@@ -19,6 +19,12 @@ export const SCENARIOS = {
     const oldestHours = Math.round(20 + (open - 14) * 2.2);
     const ok = open <= 30;
     return { ok, ms: 120 + r() * 80, metrics: { open, oldestHours, breaching: Math.max(0, open - 22) }, error: ok ? undefined : `queue over limit: ${open} open (max 30)` };
+  },
+  // Copilot seats: 412 assigned, a growing share unused (carries metrics, like the copilot-seats adapter)
+  'seats-idle': (r, now, anchor) => {
+    const grow = Math.min(1, Math.max(0, (now - (anchor - 48 * 3600000)) / (48 * 3600000)));
+    const seats = 412, inactiveSeats = Math.round(90 + grow * 38 + r() * 2), pct = Math.round((inactiveSeats / seats) * 100), ok = pct <= 30;
+    return { ok, ms: 150 + r() * 60, metrics: { seats, inactiveSeats, pendingCancellation: 9 }, error: ok ? undefined : `seat usage over limit: ${pct}% inactive (max 30%)` };
   },
   recovered: (r, now, anchor) => (now > anchor - 5 * 3600000 && now < anchor - 4.3 * 3600000 ? { ok: false, ms: 30, error: 'HTTP 503' } : steady(r)),
 };

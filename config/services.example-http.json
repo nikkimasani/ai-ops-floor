@@ -96,6 +96,23 @@
         "max": 5,
         "windowMin": 15
       }
+    },
+    {
+      "id": "copilot-seats",
+      "name": "Copilot Seat Usage",
+      "category": "ops-queue",
+      "owner": "Your Team Name",
+      "tier": 3,
+      "check": {
+        "adapter": "copilot-seats",
+        "org": "env:COPILOT_ORG",
+        "token": "env:COPILOT_TOKEN",
+        "maxSeats": 500,
+        "maxInactivePct": 30
+      },
+      "thresholds": {
+        "downAfter": 9999
+      }
     }
   ]
 }

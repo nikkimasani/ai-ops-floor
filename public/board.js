@@ -4,7 +4,7 @@ import { fmtMs, DAY } from './shared/ops.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const METRIC_LABELS = { open: 'Open', oldestHours: 'Oldest', breaching: 'Past SLA' };
+const METRIC_LABELS = { open: 'Open', oldestHours: 'Oldest', breaching: 'Past SLA', seats: 'Seats', inactiveSeats: 'Inactive', pendingCancellation: 'Cancelling' };
 const fmtMetric = (k, v) => (k === 'oldestHours' ? (v >= 48 ? `${Math.round(v / 24)}d` : `${v}h`) : v);
 const HEALTH_CLASS = { healthy: 'ok', degraded: 'warn', failing: 'bad', down: 'down', maintenance: 'maint', unknown: 'unk' };
 let S, history = {}, incidents = [], filter = { q: '', cat: 'all', health: 'all' }, timer = 0;
