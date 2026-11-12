@@ -200,3 +200,26 @@ test('assignFloors: pins beyond a floor\'s capacity spill instead of being publi
   assert.equal([...f.values()].filter((n) => n === 1).length, 3);
   assert.equal(f.get('4'), 2);
 });
+
+test('diffForFloor: departures come before joins, so a replacement always finds a free desk', () => {
+  const mk = (id, floor = 1) => ({ id, name: id, health: 'healthy', room: 'bullpen', floor, onFloor: true });
+  const before = diffForFloor(new Map(), [mk('old')], {}, 1).next;
+  const { events } = diffForFloor(before, [mk('new')], {}, 1);
+  const kinds = events.map((e) => e.type);
+  assert.ok(kinds.indexOf('agent_leave') < kinds.indexOf('agent_join'), `leave must precede join, got ${kinds.join(',')}`);
+});
+
+test('diffForFloor + a full floor: a service shifting onto the viewed floor still gets a desk when another leaves in the same poll', async () => {
+  const { Office } = await import('../public/shared/state.js');
+  const { SEATS } = await import('../public/shared/layout.js');
+  const mk = (id) => ({ id, name: id, health: 'healthy', room: 'bullpen', floor: 1, onFloor: true });
+  const full = Array.from({ length: SEATS.length }, (_, i) => mk(`s${i}`));
+  const office = new Office({ empty: true });
+  let current = new Map();
+  const step = (records) => { const r = diffForFloor(current, records, {}, 1); current = r.next; for (const e of r.events) office.emit(e); };
+  step(full);
+  assert.equal(Object.keys(office.agents).length, SEATS.length);
+  step([...full.slice(1), mk('s-newcomer')]);                 // one leaves, one arrives, floor was full
+  assert.equal(Object.keys(office.agents).length, SEATS.length);
+  assert.ok(office.agents['s-newcomer'], 'the newcomer was seated');
+});

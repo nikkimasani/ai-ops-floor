@@ -195,8 +195,9 @@ export const metaOf = (r) => ({ ops: true, category: r.category, owner: r.owner,
  */
 export function diffForFloor(current, records, roomLabels = {}, floor = 1) {
   const events = [], next = new Map();
-  for (const r of records.filter((x) => x.onFloor !== false && (x.floor ?? 1) === floor)) {
-    next.set(r.id, r);
+  for (const r of records.filter((x) => x.onFloor !== false && (x.floor ?? 1) === floor)) next.set(r.id, r);
+  for (const id of current.keys()) if (!next.has(id)) events.push({ type: 'agent_leave', id });   // departures FIRST: their desks must be free before replacements join
+  for (const r of next.values()) {
     const prev = current.get(r.id), floor = FLOOR_STATUS[r.health];
     if (!prev) {
       events.push({ type: 'agent_join', info: { id: r.id, name: r.name, role: roomLabels[r.room] || r.category, room: r.room, since: r.since, ...appearanceFor(r.id), meta: metaOf(r) } });
@@ -205,7 +206,6 @@ export function diffForFloor(current, records, roomLabels = {}, floor = 1) {
       events.push(...statusEvents(r, floor, prev.health !== r.health));
     }
   }
-  for (const id of current.keys()) if (!next.has(id)) events.push({ type: 'agent_leave', id });
   return { events, next };
 }
 
