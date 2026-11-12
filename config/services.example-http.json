@@ -45,11 +45,17 @@
       "dependsOn": [],
       "check": {
         "adapter": "http",
-        "url": "https://REPLACE-ME.example.invalid/api/health?code=env:FUNC_EXAMPLE_KEY",
+        "url": "https://REPLACE-ME.example.invalid/api/health",
         "headers": {
           "x-functions-key": "env:FUNC_EXAMPLE_KEY"
         },
-        "expectBodyIncludes": "ok"
+        "expectStatus": 200,
+        "expectBodyIncludes": "\"status\":\"ok\"",
+        "timeoutMs": 10000
+      },
+      "thresholds": {
+        "degradedMs": 4000,
+        "downAfter": 3
       }
     },
     {
@@ -71,6 +77,24 @@
       },
       "thresholds": {
         "downAfter": 9999
+      }
+    },
+    {
+      "id": "func-example-metric",
+      "name": "func-example (errors)",
+      "category": "azure-function",
+      "owner": "Your Team Name",
+      "tier": 2,
+      "check": {
+        "adapter": "azure-monitor",
+        "tenantId": "env:AZ_TENANT_ID",
+        "clientId": "env:AZ_CLIENT_ID",
+        "clientSecret": "env:AZ_CLIENT_SECRET",
+        "resourceId": "env:FUNC_EXAMPLE_RESOURCE_ID",
+        "metric": "Http5xx",
+        "aggregation": "Total",
+        "max": 5,
+        "windowMin": 15
       }
     },
     {

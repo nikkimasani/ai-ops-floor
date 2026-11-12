@@ -117,6 +117,60 @@ test('servicenow: sends basic auth and the configured query, and asks only for c
   assert.equal(seen.opts.headers.Authorization, `Basic ${Buffer.from('svc-user:pw-123').toString('base64')}`);
 });
 
+// ---------- azure-monitor ----------
+import { check as azCheck, evaluate as azEvaluate, _clearTokenCache } from '../src/adapters/azure-monitor.js';
+const azEnv = { T: 'tenant-secret-guid', C: 'client-secret-guid', S: 'sekrit-value', R: '/subscriptions/sub-secret/resourceGroups/rg-secret/providers/Microsoft.Web/sites/func-secret' };
+const azCfg = { tenantId: 'env:T', clientId: 'env:C', clientSecret: 'env:S', resourceId: 'env:R', metric: 'Http5xx', aggregation: 'Total', max: 5 };
+const metricJson = (...vals) => ({ value: [{ timeseries: [{ data: vals.map((v, i) => ({ timeStamp: new Date(NOW - (vals.length - i) * 60000).toISOString(), total: v })) }] }] });
+const azFetch = ({ metrics = metricJson(1, 2), metricStatus = 200, tokenStatus = 200, calls = [] } = {}) => async (url, opts) => {
+  calls.push({ url: String(url), opts });
+  if (String(url).includes('login.microsoftonline.com')) return { ok: tokenStatus < 400, status: tokenStatus, json: async () => ({ access_token: 'tok-abc', expires_in: 3600 }) };
+  return { ok: metricStatus < 400, status: metricStatus, json: async () => metrics };
+};
+
+test('azure-monitor: latest datapoint within the limit is ok; requests use the documented endpoints', async () => {
+  _clearTokenCache();
+  const calls = [];
+  const r = await azCheck(azCfg, { now: NOW, env: azEnv, fetch: azFetch({ calls }) });
+  assert.equal(r.ok, true);
+  assert.match(calls[0].url, /^https:\/\/login\.microsoftonline\.com\/tenant-secret-guid\/oauth2\/v2\.0\/token$/);
+  assert.match(String(calls[0].opts.body), /grant_type=client_credentials/);
+  assert.match(String(calls[0].opts.body), /scope=https%3A%2F%2Fmanagement\.azure\.com%2F\.default/);
+  assert.match(calls[1].url, /^https:\/\/management\.azure\.com\/subscriptions\/sub-secret\/.*\/providers\/microsoft\.insights\/metrics\?/);
+  assert.match(calls[1].url, /metricnames=Http5xx/);
+  assert.match(calls[1].url, /aggregation=Total/);
+  assert.equal(calls[1].opts.headers.Authorization, 'Bearer tok-abc');
+});
+
+test('azure-monitor: over max and below min fail with numbers-only reasons; no data fails', () => {
+  assert.deepEqual(azEvaluate(metricJson(1, 9), { max: 5, aggregation: 'Total' }), { ok: false, error: 'metric over limit: 9 (max 5)' });
+  assert.equal(azEvaluate(metricJson(50), { min: 100, aggregation: 'Total' }).error, 'metric below limit: 50 (min 100)');
+  assert.equal(azEvaluate({ value: [{ timeseries: [{ data: [{ timeStamp: 'x' }] }] }] }, { max: 5, aggregation: 'Total' }).error, 'no recent data');
+  assert.equal(azEvaluate(metricJson(3, 4), { max: 5, aggregation: 'Total' }).ok, true);
+});
+
+test('azure-monitor: the token is reused across services in one run', async () => {
+  _clearTokenCache();
+  const calls = [];
+  const f = azFetch({ calls });
+  await azCheck(azCfg, { now: NOW, env: azEnv, fetch: f });
+  await azCheck(azCfg, { now: NOW, env: azEnv, fetch: f });
+  assert.equal(calls.filter((c) => c.url.includes('login.microsoftonline.com')).length, 1);
+});
+
+test('azure-monitor: errors never leak the tenant, client, secret, resource id or token', async () => {
+  const results = [];
+  for (const f of [azFetch({ tokenStatus: 401 }), azFetch({ metricStatus: 403 }), azFetch({ metricStatus: 500 }), azFetch({ metrics: metricJson(99) }),
+    async () => { throw Object.assign(new Error('getaddrinfo ENOTFOUND management.azure.com sub-secret'), { cause: { code: 'ENOTFOUND' } }); }]) {
+    _clearTokenCache();
+    results.push(await azCheck(azCfg, { now: NOW, env: azEnv, fetch: f }));
+  }
+  results.push(await azCheck({ ...azCfg, clientSecret: 'env:MISSING' }, { now: NOW, env: azEnv }));
+  assert.deepEqual(results.map((r) => r.error), ['authentication failed', 'not authorized (check the Monitoring Reader role)', 'HTTP 500', 'metric over limit: 99 (max 5)', 'connection failed', 'configuration error: missing secret']);
+  const all = JSON.stringify(results);
+  for (const s of ['tenant-secret', 'client-secret', 'sekrit', 'sub-secret', 'rg-secret', 'func-secret', 'tok-abc']) assert.ok(!all.includes(s), `leaked ${s}`);
+});
+
 // ---------- copilot-seats ----------
 import { check as csCheck, evaluate as csEvaluate } from '../src/adapters/copilot-seats.js';
 const csEnv = { O: 'acme-secret-org', T: 'ghp_secrettoken123' };

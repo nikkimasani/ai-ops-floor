@@ -31,6 +31,8 @@ export function validateConfig(cfg) {
     else if (s.check.adapter === 'servicenow' && (!s.check.instance || !s.check.user || !s.check.password)) add(`${who}: servicenow check needs instance, user and password (use "env:NAME" for all three)`);
     else if (s.check.adapter === 'copilot-seats' && (!s.check.org || !s.check.token)) add(`${who}: copilot-seats check needs org and token (use "env:NAME" for both)`);
     else if (s.check.adapter === 'copilot-seats' && s.check.maxSeats == null && s.check.maxInactivePct == null) add(`${who}: copilot-seats check needs maxSeats and/or maxInactivePct`);
+    else if (s.check.adapter === 'azure-monitor' && !['tenantId', 'clientId', 'clientSecret', 'resourceId', 'metric'].every((k) => s.check[k])) add(`${who}: azure-monitor check needs tenantId, clientId, clientSecret, resourceId and metric (use "env:NAME" for the first four)`);
+    else if (s.check.adapter === 'azure-monitor' && s.check.max == null && s.check.min == null) add(`${who}: azure-monitor check needs max and/or min`);
     else if (s.check.adapter === 'fixture' && !s.check.scenario) add(`${who}: fixture check needs a scenario`);
     for (const w of s?.maintenance || []) {
       if (!Number.isFinite(parseWhen(w.from)) || !Number.isFinite(parseWhen(w.to))) add(`${who}: maintenance window needs valid "from" and "to" (ISO date, or now-10m / now+2h)`);
