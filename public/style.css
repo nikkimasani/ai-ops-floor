@@ -170,5 +170,8 @@ body.boardOpen { overflow: hidden; }
 .depgraph .dnode .rc{font-size:9px;fill:#d63a57;font-weight:700}
 .depgraph .dnode.warn rect{stroke:#f2b04a}.depgraph .dnode.bad rect{stroke:#f0647a;fill:#fff1f3}.depgraph .dnode.down rect{stroke:#d63a57;fill:#ffe3e8}.depgraph .dnode.maint rect{stroke:#8ab6f0}
 .depgraph .dnode:focus-visible rect,.depgraph .dnode:hover rect{stroke-width:3;stroke:#b387f5}
+.floors{display:inline-flex;gap:4px}
+.floors .fl{font-weight:700}.floors .fl.on{background:#b387f5;color:#fff;border-color:#b387f5}
+.floors .flbad{margin-left:6px;background:#f0647a;color:#fff;border-radius:9px;padding:0 6px;font-size:11px}
 .ackd{display:inline-block;margin:4px 0;padding:3px 9px;border-radius:10px;background:#e3f6ec;color:#23704a;font-size:12px;font-weight:600}
 .ackl{display:inline-block;margin:4px 0;font-size:12px;font-weight:600;color:#7a4fd0}

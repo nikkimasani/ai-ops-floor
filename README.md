@@ -80,8 +80,7 @@ test/                 node:test suites
 
 ## Limits to know about
 
-- **16 desks** on the floor. Extra services are listed on the Board but get no character (capacity is a layout
-  limit, tracked in the backlog).
+- **16 desks per floor.** More services spill onto **Floor 2, 3, …** automatically (a tab appears in the header with a red count of failing services on each floor). Set `"onFloor": false` on a service to keep it on the Board only, or `"floor": 2` to pin it. The **Needs me** list and incident feed cover the floor you're viewing; the header summary, Board and floor tabs cover everything.
 - **GitHub-hosted runners can only reach the public internet.** Internal-only endpoints need a self-hosted runner.
 - **Scheduled workflows run "about" every 5 minutes**, sometimes late. The staleness banner exists for this.
 - **GitHub Pages is public unless your plan supports private Pages.** Don't publish internal service names

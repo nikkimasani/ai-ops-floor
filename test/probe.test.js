@@ -73,12 +73,17 @@ test('a check that throws or hangs is reported as "could not run", not a crash',
   assert.match(JSON.stringify(s.status), /check could not run/);
 });
 
-test('services beyond the number of desks stay off the floor but stay on the Board', async () => {
-  const many = Array.from({ length: SEATS.length + 3 }, (_, i) => ({ id: `s${i}` }));
+test('services beyond the number of desks move to the next floor; onFloor:false stays Board-only', async () => {
+  const many = Array.from({ length: SEATS.length + 3 }, (_, i) => ({ id: `s${i}`, ...(i === 1 ? { onFloor: false } : {}) }));
   const [s] = await run(cfg(many), Object.fromEntries(many.map((m) => [m.id, [ok()]])), 1);
   assert.equal(s.status.services.length, SEATS.length + 3);
-  assert.equal(s.status.services.filter((x) => x.onFloor).length, SEATS.length);
-  assert.equal(rec(s, `s${SEATS.length + 2}`).onFloor, false);
+  assert.equal(rec(s, 's1').onFloor, false);
+  assert.equal(rec(s, 's1').floor, undefined);
+  const onFloor = s.status.services.filter((x) => x.onFloor);
+  assert.equal(onFloor.length, SEATS.length + 2);
+  assert.equal(onFloor.filter((x) => x.floor === 1).length, SEATS.length);
+  assert.equal(onFloor.filter((x) => x.floor === 2).length, 2);
+  assert.equal(s.status.site.floors, 2);
 });
 
 test('state round-trips through the files the dashboard reads', async () => {

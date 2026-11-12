@@ -186,7 +186,7 @@ function drop(id) {
   refresh();
 }
 
-function applySnapshot(snap) {
+function applySnapshot(snap, opts = {}) {
   S.mode = snap.mode;
   S.agents = {};
   S.order = snap.agents.map((a) => a.id);
@@ -196,7 +196,7 @@ function applySnapshot(snap) {
   S.ops = snap.mode === 'ops';
   $('modeNote').textContent = 'Each character is a service. Health comes from the probe job’s latest snapshot (data/status.json); the page re-reads it every 30 seconds. Acknowledging a problem only hides it from your “needs me” list in this browser. Layout, looks and acknowledgements never leave this device.';
   $('legendList').innerHTML = ops.legendHtml();
-  for (const a of snap.agents) if (['dark', 'blocked'].includes(a.status)) noteTransition('idle', a);
+  if (!opts.navigation) for (const a of snap.agents) if (['dark', 'blocked'].includes(a.status)) noteTransition('idle', a);   // switching floors isn't a health change
   refresh(); renderWalkin();
 }
 
@@ -465,12 +465,20 @@ edit.initEdit(C); fun.initFun(C); looks.initLooks(C); toolbox.initToolbox(C);
 window.agv = C;     // handy for poking around in the console
 resize(); renderClock(); setInterval(renderClock, 15000);
 setInterval(() => { if (!$('inboxModal').hidden) renderInbox(); }, 5000);
-S.showOnFloor = (id) => { if (S.agents[id]) { select(id); focus(id); } };
+S.floor = Number(store.get('floor', 1)) || 1;
+S.switchFloor = (n) => { S.floor = n; store.set('floor', n); S.source?.setFloor(n); ops.renderFloors(S.opsData, $, S.floor); refresh(); };
+S.showOnFloor = (id) => {
+  const f = S.opsData?.data?.services.find((s) => s.id === id)?.floor ?? 1;
+  if (f !== S.floor) S.switchFloor(f);                                 // the service may live on another floor
+  if (S.agents[id]) { select(id); focus(id); }
+};
+$('floors').onclick = (e) => { const b = e.target.closest('[data-floor]'); if (b) S.switchFloor(Number(b.dataset.floor)); };
 board.init(S);
 $('opsSummary').onclick = () => board.open();
 connect({
+  floor: S.floor,
   onSnapshot: applySnapshot, onEvent: applyEvent,
-  onMeta: (m) => { S.sharedAcks = m.acks || {}; if (m.data || !S.opsData?.data) S.opsData = m; else S.opsData = { ...S.opsData, stale: true, error: m.error }; ops.onMeta(S.opsData, $); board.update(); refresh(); },
+  onMeta: (m) => { S.sharedAcks = m.acks || {}; if (m.data || !S.opsData?.data) S.opsData = m; else S.opsData = { ...S.opsData, stale: true, error: m.error }; ops.onMeta(S.opsData, $); S.floor = S.source?.floor?.() ?? S.floor; ops.renderFloors(S.opsData, $, S.floor); board.update(); refresh(); },
 }).then((src) => { S.source = src; });
 setInterval(() => { if (S.opsData) ops.onMeta(S.opsData, $); }, 15000);          // keep "updated 3m ago" honest between polls
 requestAnimationFrame(frame);

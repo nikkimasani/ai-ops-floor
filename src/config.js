@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { adapterNames } from './adapters/index.js';
 import { parseWhen } from '../public/shared/ops.js';
+import { SEATS } from '../public/shared/layout.js';
 
 const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 export const SEATED_ROOMS = ['boardroom', 'bullpen', 'review'];   // the rooms that have desks on the floor
@@ -43,6 +44,11 @@ export function validateConfig(cfg) {
     for (const w of s?.maintenance || []) {
       if (!Number.isFinite(parseWhen(w.from)) || !Number.isFinite(parseWhen(w.to))) add(`${who}: maintenance window needs valid "from" and "to" (ISO date, or now-10m / now+2h)`);
     }
+  }
+  const pinned = {};
+  for (const s of cfg.services) if (s.onFloor !== false && s.floor != null) {
+    if (!Number.isInteger(s.floor) || s.floor < 1) add(`service "${s.id}": floor must be a whole number from 1`);
+    else if ((pinned[s.floor] = (pinned[s.floor] || 0) + 1) === SEATS.length + 1) add(`floor ${s.floor} has more than ${SEATS.length} services pinned to it: each floor has ${SEATS.length} desks`);
   }
   for (const s of cfg.services) for (const d of s.dependsOn || []) if (!ids.has(d)) add(`service "${s.id}": dependsOn "${d}" is not a known service`);
   return errors;

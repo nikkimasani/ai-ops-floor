@@ -74,3 +74,12 @@ export function onMeta(m, $, now = Date.now()) {
   banner.hidden = !m.stale && !m.error;
   if (!banner.hidden) banner.textContent = m.error ? `Can’t refresh status data (${m.error}). Showing the last data we have.` : `Status data is stale (updated ${ago(d.generatedAt, now)}). The probe job may have stopped — treat everything as unknown.`;
 }
+
+/** Floor tabs (only when there is more than one floor). Each tab shows how many services are failing/down on it. */
+export function renderFloors(m, $, current) {
+  const d = m?.data, n = d?.site?.floors || 1, el = $('floors');
+  el.hidden = n < 2;
+  if (n < 2) { el.innerHTML = ''; return; }
+  const bad = (f) => d.services.filter((s) => (s.floor ?? 1) === f && (s.health === 'down' || s.health === 'failing')).length;
+  el.innerHTML = Array.from({ length: n }, (_, i) => i + 1).map((f) => `<button class="chip fl${f === current ? ' on' : ''}" data-floor="${f}" aria-pressed="${f === current}" aria-label="Floor ${f}${bad(f) ? `, ${bad(f)} failing or down` : ''}">Floor ${f}${bad(f) ? `<b class="flbad">${bad(f)}</b>` : ''}</button>`).join('');
+}
