@@ -10,10 +10,17 @@ const POLL_MS = (Number(params.get('poll')) || 30) * 1000;
 let demoShift = null;                                  // one constant per page load, so demo timestamps stay stable between polls
 const DATA = params.get('data') || 'data';           // ?data=https://… lets a hosted page read a snapshot elsewhere
 
+let lastAcks = {};
+async function loadAcks() {                                           // optional: only exists when site.sharedAcks is on
+  try { const r = await fetch(`${DATA}/acks.json?ts=${Date.now()}`, { cache: 'no-store' }); if (r.ok) lastAcks = await r.json(); else if (r.status === 404) lastAcks = {}; } catch { /* keep last */ }
+  return lastAcks;
+}
+
 async function load() {
   const res = await fetch(`${DATA}/status.json?ts=${Date.now()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`status.json: HTTP ${res.status}`);
   const d = await res.json();
+  if (d.site?.sharedAcks) await loadAcks(); else lastAcks = {};
   if (d.demo) { demoShift ??= Date.now() - d.generatedAt; rebaseDemo(d, demoShift); }
   return d;
 }
@@ -41,7 +48,7 @@ export async function connect(h) {
     current = next;
     for (const ev of events) { try { office.emit(ev); } catch (err) { console.warn('skipped event', ev.type, err.message); } }
     if (swapped && subscribed) publish();                                // before the first snapshot, connect() publishes it itself
-    h.onMeta?.({ data: d, stale, fetchedAt: Date.now(), error: null });
+    h.onMeta?.({ data: d, stale, fetchedAt: Date.now(), error: null, acks: lastAcks });
   };
 
   let first;

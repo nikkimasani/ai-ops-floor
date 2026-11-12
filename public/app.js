@@ -208,7 +208,7 @@ function renderFeed() {
 }
 
 const needs = () => {
-  const out = Object.values(S.agents).filter((a) => ['asking', 'ready', 'dark', 'blocked'].includes(a.status) && !(a.meta?.ops && S.acks[a.id] === a.since))
+  const out = Object.values(S.agents).filter((a) => ['asking', 'ready', 'dark', 'blocked'].includes(a.status) && !(a.meta?.ops && (S.acks[a.id] === a.since || ops.ackOf(a.id))))
     .map((a) => ({ kind: a.status, a, since: a.since || 0 }));
   for (const w of S.walkins) out.push({ kind: 'walkin', w, since: w.ts || 0 });
   return out.sort((x, y) => x.since - y.since);
@@ -478,7 +478,7 @@ $('opsSummary').onclick = () => board.open();
 connect({
   floor: S.floor,
   onSnapshot: applySnapshot, onEvent: applyEvent,
-  onMeta: (m) => { if (m.data || !S.opsData?.data) S.opsData = m; else S.opsData = { ...S.opsData, stale: true, error: m.error }; ops.onMeta(S.opsData, $); S.floor = S.source?.floor?.() ?? S.floor; ops.renderFloors(S.opsData, $, S.floor); board.update(); },
+  onMeta: (m) => { S.sharedAcks = m.acks || {}; if (m.data || !S.opsData?.data) S.opsData = m; else S.opsData = { ...S.opsData, stale: true, error: m.error }; ops.onMeta(S.opsData, $); S.floor = S.source?.floor?.() ?? S.floor; ops.renderFloors(S.opsData, $, S.floor); board.update(); refresh(); },
 }).then((src) => { S.source = src; });
 setInterval(() => { if (S.opsData) ops.onMeta(S.opsData, $); }, 15000);          // keep "updated 3m ago" honest between polls
 requestAnimationFrame(frame);

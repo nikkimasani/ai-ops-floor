@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 permissions:
   contents: write                  # push the `data` branch
+  issues: write                    # only used when site.sharedAcks is on: one issue per incident
   pages: write
   id-token: write
 jobs:
@@ -26,6 +27,7 @@ jobs:
         env:
           # Secrets referenced from config/services.json as "env:NAME" must be listed here, e.g.
           # FUNC_EXAMPLE_KEY: ${{ secrets.FUNC_EXAMPLE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # incident issues (only used when site.sharedAcks is on)
           NODE_NO_WARNINGS: '1'
       - run: scripts/publish-data.sh
       - name: Assemble site

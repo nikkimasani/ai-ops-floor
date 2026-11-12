@@ -117,6 +117,11 @@ export function rebaseDemo(d, shiftMs) {
 
 /** Fields that are safe to publish. Endpoints, headers and credentials are never part of a record. */
 export const PUBLIC_FIELDS = ['id', 'name', 'category', 'room', 'owner', 'tier', 'health', 'detail', 'latencyMs', 'uptime24h', 'uptime7d', 'lastCheck', 'since', 'consecutiveFailures', 'rootCause', 'onFloor', 'metrics', 'dependsOn', 'floor'];
+/** An ack only counts for the incident that is open NOW. Cached or out-of-date acks for an older incident are ignored. */
+export const validAck = (acks, services, id) => {
+  const k = acks?.[id], svc = services?.find((x) => x.id === id);
+  return k && svc?.incidentId && svc.incidentId === k.incidentId ? k : null;
+};
 // ---------- floors ----------
 /**
  * Which floor each service sits on. Every floor has the same desks (`seats`: [{ room }]). A service goes to the first
@@ -187,7 +192,7 @@ export function appearanceFor(id) {
   return { color: DRESS[h % DRESS.length], accent: ACCENT[(h >> 3) % ACCENT.length], hair: HAIR[(h >> 5) % HAIR.length], hairColor: HAIR_COLORS[(h >> 7) % HAIR_COLORS.length] };
 }
 
-export const metaOf = (r) => ({ ops: true, category: r.category, owner: r.owner, tier: r.tier, health: r.health, latencyMs: r.latencyMs, uptime24h: r.uptime24h, uptime7d: r.uptime7d, lastCheck: r.lastCheck, since: r.since, rootCause: r.rootCause });
+export const metaOf = (r) => ({ ops: true, category: r.category, owner: r.owner, tier: r.tier, health: r.health, latencyMs: r.latencyMs, uptime24h: r.uptime24h, uptime7d: r.uptime7d, lastCheck: r.lastCheck, since: r.since, rootCause: r.rootCause, ackIssue: r.ackIssue });
 
 /**
  * Turn a new snapshot into office events, given what the floor currently shows (`current`: id -> record).

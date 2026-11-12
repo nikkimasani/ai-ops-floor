@@ -28,7 +28,8 @@ export function planAlerts(prevIncidents = [], nextIncidents = [], services = []
 
 export const formatAlert = (a) => {
   const tier = a.tier ? ` (Tier ${a.tier})` : '';
-  return a.kind === 'down' ? `🥀 ${a.name}${tier} is DOWN` : `✅ ${a.name}${tier} recovered after ${fmtMs(a.durationMs)}`;
+  const link = a.url ? `\n${a.url}` : '';                       // the incident issue: where to /ack and read notes
+  return (a.kind === 'down' ? `🥀 ${a.name}${tier} is DOWN` : `✅ ${a.name}${tier} recovered after ${fmtMs(a.durationMs)}`) + link;
 };
 
 /** Send alerts to the webhook. Returns { sent, failed }. Never throws and never logs the URL. */
@@ -40,7 +41,7 @@ export async function sendAlerts(alerts, cfg, { env = process.env, fetch: doFetc
   let sent = 0, failed = 0;
   for (const a of alerts) {
     const text = formatAlert(a);
-    const body = cfg.format === 'json' ? { event: a.kind, service: a.name, tier: a.tier ?? null, text } : { text };
+    const body = cfg.format === 'json' ? { event: a.kind, service: a.name, tier: a.tier ?? null, ...(a.url && { url: a.url }), text } : { text };
     try {
       const res = await doFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) });
       if (res.ok) sent++; else { failed++; log(`alerts: delivery failed (HTTP ${res.status})`); }
