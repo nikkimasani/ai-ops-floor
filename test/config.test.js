@@ -51,3 +51,12 @@ test('servicenow checks need instance, user and password', async () => {
   base.services[0].check = { adapter: 'servicenow', instance: 'env:A', user: 'env:B', password: 'env:C' };
   assert.deepEqual(validateConfig(base), []);
 });
+
+test('azure-monitor checks need credentials, a resource, a metric and a limit', async () => {
+  const { validateConfig } = await import('../src/config.js');
+  const mk = (check) => ({ site: { categories: { q: { label: 'Q', room: 'bullpen' } } }, services: [{ id: 'f1', name: 'F', category: 'q', check: { adapter: 'azure-monitor', ...check } }] });
+  assert.match(validateConfig(mk({ metric: 'Http5xx' })).join('\n'), /azure-monitor check needs tenantId/);
+  const full = { tenantId: 'env:A', clientId: 'env:B', clientSecret: 'env:C', resourceId: 'env:D', metric: 'Http5xx' };
+  assert.match(validateConfig(mk(full)).join('\n'), /needs max and\/or min/);
+  assert.deepEqual(validateConfig(mk({ ...full, max: 5 })), []);
+});

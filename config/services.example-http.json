@@ -78,6 +78,24 @@
       "thresholds": {
         "downAfter": 9999
       }
+    },
+    {
+      "id": "func-example-metric",
+      "name": "func-example (errors)",
+      "category": "azure-function",
+      "owner": "Your Team Name",
+      "tier": 2,
+      "check": {
+        "adapter": "azure-monitor",
+        "tenantId": "env:AZ_TENANT_ID",
+        "clientId": "env:AZ_CLIENT_ID",
+        "clientSecret": "env:AZ_CLIENT_SECRET",
+        "resourceId": "env:FUNC_EXAMPLE_RESOURCE_ID",
+        "metric": "Http5xx",
+        "aggregation": "Total",
+        "max": 5,
+        "windowMin": 15
+      }
     }
   ]
 }
