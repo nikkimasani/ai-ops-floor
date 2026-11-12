@@ -10,8 +10,8 @@
   },
   "services": [
     {
-      "id": "resume-review",
-      "name": "Resume Review",
+      "id": "example-app",
+      "name": "Example App",
       "category": "ai-hub",
       "owner": "Your Team Name",
       "tier": 1,
