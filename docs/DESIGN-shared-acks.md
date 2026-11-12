@@ -37,7 +37,7 @@
 
 ## Risks and mitigations
 - **Public repo = public issues.** Incident issues would show service names and tier. Only enable this in the private company-org repo, never in the public demo.
-- **Comment injection:** only the first token `/ack` is parsed; the note is length-capped and rendered as text, never HTML.
+- **Comment content:** only whether a line starts with `/ack` is used. Anything typed after it is **never published** (the published `acks.json` holds only `{ incidentId, by, at }`); notes live on the issue.
 - **Workflow races** (two acks at once): `concurrency` group on the ack workflow, first ack wins, later ones append to `note`.
 - **Delay:** an ack appears after the workflow finishes (about 1-2 minutes). The button should say "ack requested" immediately (local) until the shared ack shows up.
 
