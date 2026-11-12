@@ -42,12 +42,12 @@ export function depGraphSvg(services) {
   const W = 150, H = 30, GX = 56, GY = 12;
   const cols = Array.from({ length: g.layers }, (_, l) => g.nodes.filter((n) => n.layer === l));
   const pos = new Map();
-  cols.forEach((col, l) => col.forEach((n, i) => pos.set(n.id, { x: 8 + l * (W + GX), y: 8 + i * (H + GY) })));
-  const width = 16 + g.layers * W + (g.layers - 1) * GX, height = 16 + Math.max(...cols.map((c) => c.length)) * (H + GY) - GY;
+  cols.forEach((col, l) => col.forEach((n, i) => pos.set(n.id, { x: 8 + l * (W + GX), y: 16 + i * (H + GY) })));
+  const width = 16 + g.layers * W + (g.layers - 1) * GX, height = 24 + Math.max(...cols.map((c) => c.length)) * (H + GY) - GY;
   const edge = (e) => { const a = pos.get(e.from), b = pos.get(e.to), x1 = a.x + W, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2, mx = (x1 + x2) / 2;
     return `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="${e.bad ? '#f0647a' : '#c9b6ee'}" stroke-width="${e.bad ? 2 : 1.4}"/>`; };
   const node = (n) => { const p = pos.get(n.id), root = g.rootCauses.includes(n.id), name = n.name.length > 20 ? `${n.name.slice(0, 19)}…` : n.name;
-    return `<g class="dnode ${HEALTH_CLASS[n.health]}${root ? ' root' : ''}" tabindex="0" role="button" data-bsearch="${esc(n.name)}" aria-label="${esc(n.name)}: ${n.health}${root ? ', root cause' : ''}. Press Enter to show its card."><rect x="${p.x}" y="${p.y}" width="${W}" height="${H}" rx="9"/><text x="${p.x + 10}" y="${p.y + H / 2 + 4}">${esc(name)}</text>${root ? `<text class="rc" x="${p.x + W - 8}" y="${p.y + H / 2 + 4}" text-anchor="end">root cause</text>` : ''}</g>`; };
+    return `<g class="dnode ${HEALTH_CLASS[n.health]}${root ? ' root' : ''}" tabindex="0" role="button" data-bsearch="${esc(n.name)}" aria-label="${esc(n.name)}: ${n.health}${root ? ', root cause' : ''}. Press Enter to show its card."><rect x="${p.x}" y="${p.y}" width="${W}" height="${H}" rx="9"/><text x="${p.x + 10}" y="${p.y + H / 2 + 4}">${esc(name)}</text>${root ? `<text class="rc" x="${p.x + W - 6}" y="${p.y - 3}" text-anchor="end">ROOT CAUSE</text>` : ''}</g>`; };
   return `<h5>Dependencies</h5><p class="fine">Arrows point from a service to the things that wait on it. Red = failing or down. Select a service to filter the cards.</p><div class="depwrap"><svg class="depgraph" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="group" aria-label="Service dependency graph">${g.edges.map(edge).join('')}${g.nodes.map(node).join('')}</svg></div>`;
 }
 
