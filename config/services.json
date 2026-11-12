@@ -5,7 +5,8 @@
     "categories": {
       "platform": { "label": "Platform & Gateways", "room": "boardroom" },
       "ai-hub": { "label": "AI Hub Apps", "room": "bullpen" },
-      "azure-function": { "label": "Azure Function Apps", "room": "review" }
+      "azure-function": { "label": "Azure Function Apps", "room": "review" },
+      "ops-queue": { "label": "Ticket Queues", "room": "bullpen" }
     }
   },
   "services": [
@@ -25,6 +26,8 @@
 
     { "id": "func-intake", "name": "func-intake", "category": "azure-function", "owner": "Team Intake", "tier": 1, "dependsOn": ["identity-broker"], "check": { "adapter": "fixture", "scenario": "steady" } },
     { "id": "func-embeddings", "name": "func-embeddings", "category": "azure-function", "owner": "Knowledge Team", "tier": 2, "check": { "adapter": "fixture", "scenario": "slowish" } },
-    { "id": "func-notify", "name": "func-notify", "category": "azure-function", "owner": "Platform Team", "tier": 3, "check": { "adapter": "fixture", "scenario": "steady" } }
+    { "id": "func-notify", "name": "func-notify", "category": "azure-function", "owner": "Platform Team", "tier": 3, "check": { "adapter": "fixture", "scenario": "steady" } },
+    { "id": "licence-requests", "name": "Licence Requests Queue", "category": "ops-queue", "owner": "AI Ops", "tier": 2,
+      "check": { "adapter": "fixture", "scenario": "queue-backlog" }, "thresholds": { "downAfter": 9999 } }
   ]
 }

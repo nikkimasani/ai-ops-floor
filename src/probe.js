@@ -13,13 +13,21 @@ import { loadConfig } from './config.js';
 import { DEFAULTS, SAMPLE, deriveHealth, mttrMs, summarize, toPublic, trimHistory, uptime, updateIncidents, activeMaintenance, DAY } from '../public/shared/ops.js';
 import { SEATS } from '../public/shared/layout.js';
 
+// Adapters may report a few counters (queue size, ages). Only known keys with finite numbers get through.
+export const METRIC_KEYS = ['open', 'oldestHours', 'breaching'];
+export const cleanMetrics = (m) => {
+  const out = {};
+  for (const k of METRIC_KEYS) if (Number.isFinite(m?.[k])) out[k] = Math.round(m[k]);
+  return Object.keys(out).length ? out : undefined;
+};
+
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('adapter timeout')), ms).unref?.())]);
 
 async function runCheck(service, { adapters, now, anchor, env, timeoutMs }) {
   const adapter = adapters[service.check.adapter];
   try {
     const r = await withTimeout(adapter.check(service.check, { serviceId: service.id, now, anchor, env, timeoutMs }), timeoutMs + 1000);
-    return { ok: Boolean(r.ok), ms: Number(r.ms) || 0, error: r.ok ? undefined : String(r.error || 'check failed').slice(0, 120) };
+    return { ok: Boolean(r.ok), ms: Number(r.ms) || 0, error: r.ok ? undefined : String(r.error || 'check failed').slice(0, 120), metrics: cleanMetrics(r.metrics) };
   } catch {
     return { ok: false, ms: 0, error: 'check could not run' };      // adapter bug or hang: say so, never leak details
   }
@@ -54,7 +62,7 @@ export async function runOnce({ config, state = {}, now = Date.now(), adapters =
       uptime24h: uptime(history[s.id], DAY, now), uptime7d: uptime(history[s.id], 7 * DAY, now),
       lastCheck: now, since: prev && prev.health === h.health ? prev.since : now,
       consecutiveFailures: h.consecutiveFailures, rootCause: h.rootCause,
-      onFloor: s.onFloor !== false && i < seats,
+      onFloor: s.onFloor !== false && i < seats, metrics: result.metrics,
     };
     updateIncidents(incidents, s, prev?.health, rec, now);
     return rec;

@@ -161,3 +161,5 @@ body:has(#staleBanner:not([hidden])) main { height: calc(100% - 56px - env(safe-
 .stalebox { background: #fff1f1; border: 1.5px solid #f0647a; color: #8a2a24; border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; font-weight: 700; font-size: 13px; }
 body.boardOpen { overflow: hidden; }
 @media (max-width: 760px) { .chip .lbl { display: none; } #boardBtn .lbl { display: none; } .chip.time { margin-left: 0; } }
+.bmetrics{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 2px;font-size:12px}
+.bmetrics span{background:rgba(179,135,245,.14);border-radius:8px;padding:2px 8px}
