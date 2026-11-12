@@ -28,6 +28,7 @@ export function validateConfig(cfg) {
     if (cats && !cats[s?.category]) add(`${who}: category "${s?.category}" is not defined in site.categories`);
     if (!s?.check || !adapterNames().includes(s.check.adapter)) add(`${who}: check.adapter must be one of ${adapterNames().join(', ')}`);
     else if (s.check.adapter === 'http' && !s.check.url) add(`${who}: http check needs a url`);
+    else if (s.check.adapter === 'servicenow' && (!s.check.instance || !s.check.user || !s.check.password)) add(`${who}: servicenow check needs instance, user and password (use "env:NAME" for all three)`);
     else if (s.check.adapter === 'fixture' && !s.check.scenario) add(`${who}: fixture check needs a scenario`);
     for (const w of s?.maintenance || []) {
       if (!Number.isFinite(parseWhen(w.from)) || !Number.isFinite(parseWhen(w.to))) add(`${who}: maintenance window needs valid "from" and "to" (ISO date, or now-10m / now+2h)`);

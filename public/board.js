@@ -4,6 +4,8 @@ import { fmtMs, DAY } from './shared/ops.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const METRIC_LABELS = { open: 'Open', oldestHours: 'Oldest', breaching: 'Past SLA' };
+const fmtMetric = (k, v) => (k === 'oldestHours' ? (v >= 48 ? `${Math.round(v / 24)}d` : `${v}h`) : v);
 const HEALTH_CLASS = { healthy: 'ok', degraded: 'warn', failing: 'bad', down: 'down', maintenance: 'maint', unknown: 'unk' };
 let S, history = {}, incidents = [], filter = { q: '', cat: 'all', health: 'all' }, timer = 0;
 
@@ -65,6 +67,7 @@ function render() {
         <div class="btop"><b>${esc(s.name)}</b><span class="spill ${HEALTH_CLASS[s.health]}">${s.health}</span></div>
         <div class="bsub">${esc(cats[s.category]?.label || s.category)} · ${esc(s.owner || '—')}${s.tier ? ` · Tier ${s.tier}` : ''}</div>
         <div class="bdetail">${esc(s.detail || '')}</div>
+        ${s.metrics ? `<div class="bmetrics">${Object.keys(METRIC_LABELS).filter((k) => s.metrics[k] != null).map((k) => `<span>${METRIC_LABELS[k]} <b>${fmtMetric(k, s.metrics[k])}</b></span>`).join('')}</div>` : ''}
         ${sparkline(history[s.id], now)}
         <div class="bstats"><span>24h <b>${pct(s.uptime24h)}</b></span><span>7d <b>${pct(s.uptime7d)}</b></span><span>${s.latencyMs != null ? `<b>${fmtMs(s.latencyMs)}</b>` : '<b>—</b>'}</span><span class="muted">${ago(s.since).replace(' ago', '')} in state</span></div>
         ${s.onFloor !== false ? `<button class="abtn ghost sm" data-bshow="${esc(s.id)}">Show on floor</button>` : ''}

@@ -122,6 +122,18 @@ test('demo data replays 48h through the real pipeline and tells a coherent story
   assert.ok(state.incidents.some((i) => i.service === 'model-router' && i.end === null), 'model-router incident is open');
   assert.ok(state.incidents.some((i) => i.service === 'contract-checker' && i.end !== null), 'contract-checker incident was resolved');
   assert.ok(get('contract-checker').uptime24h < 1 && get('contract-checker').uptime24h > 0.9);
-  assert.equal(state.status.services.length, 14);
+  assert.equal(state.status.services.length, 15);
+  assert.equal(get('licence-requests').health, 'failing');
+  assert.match(get('licence-requests').detail, /^queue over limit: \d+ open/);
+  assert.ok(get('licence-requests').metrics.open > 30);
+  assert.ok(get('licence-requests').onFloor);
   assert.ok(state.history['ai-gateway'].length >= 576);
+});
+
+test('adapter metrics are published only for known keys and only as numbers', async () => {
+  const config = cfg([{ id: 'q' }]);
+  const adapters = { fake: { check: async () => ({ ok: true, ms: 5, metrics: { open: 7.4, oldestHours: 'ticket INC0012345', ticketText: 'secret', breaching: Infinity } }) } };
+  const state = await runOnce({ config, state: {}, now: T0, adapters });
+  assert.deepEqual(rec(state, 'q').metrics, { open: 7 });
+  assert.ok(!JSON.stringify(state).includes('INC0012345'));
 });

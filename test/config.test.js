@@ -43,3 +43,11 @@ test('the http example config also validates', () => {
   const dir = mkdtempSync(join(tmpdir(), 'cfg-'));
   assert.doesNotThrow(() => loadConfig('config/services.example-http.json'));
 });
+
+test('servicenow checks need instance, user and password', async () => {
+  const { validateConfig } = await import('../src/config.js');
+  const base = { site: { categories: { q: { label: 'Q', room: 'bullpen' } } }, services: [{ id: 'q1', name: 'Q', category: 'q', check: { adapter: 'servicenow', instance: 'env:A' } }] };
+  assert.match(validateConfig(base).join('\n'), /servicenow check needs instance, user and password/);
+  base.services[0].check = { adapter: 'servicenow', instance: 'env:A', user: 'env:B', password: 'env:C' };
+  assert.deepEqual(validateConfig(base), []);
+});

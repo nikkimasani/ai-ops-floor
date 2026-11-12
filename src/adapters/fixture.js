@@ -1,5 +1,5 @@
 // Deterministic fake results, so the whole pipeline (and the demo dashboard) works with no real systems.
-// scenario: steady | slow | slowish | flaky | outage-now | recovered
+// scenario: steady | slow | slowish | flaky | outage-now | recovered | queue-backlog
 const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 function rng(seed) {   // mulberry32
   let a = seed >>> 0;
@@ -13,6 +13,13 @@ export const SCENARIOS = {
   slowish: (r) => ({ ok: true, ms: 700 + r() * 1400 }),
   flaky: (r) => (r() < 0.12 ? { ok: false, ms: 30, error: 'HTTP 502' } : { ok: true, ms: 150 + r() * 250 }),
   'outage-now': (r, now, anchor) => (now > anchor - 25 * 60000 ? { ok: false, ms: 8000, error: 'timeout after 8s' } : steady(r)),
+  // a ticket queue that has been growing for two days and is now over its limit (carries metrics, like the servicenow adapter)
+  'queue-backlog': (r, now, anchor) => {
+    const open = Math.round(14 + Math.min(1, Math.max(0, (now - (anchor - 48 * 3600000)) / (48 * 3600000))) * 22 + r() * 2);
+    const oldestHours = Math.round(20 + (open - 14) * 2.2);
+    const ok = open <= 30;
+    return { ok, ms: 120 + r() * 80, metrics: { open, oldestHours, breaching: Math.max(0, open - 22) }, error: ok ? undefined : `queue over limit: ${open} open (max 30)` };
+  },
   recovered: (r, now, anchor) => (now > anchor - 5 * 3600000 && now < anchor - 4.3 * 3600000 ? { ok: false, ms: 30, error: 'HTTP 503' } : steady(r)),
 };
 

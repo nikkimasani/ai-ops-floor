@@ -134,3 +134,9 @@ test('demo rebasing shifts times by one constant', () => {
 });
 
 test('millisecond formatting', () => { assert.equal(fmtMs(142), '142ms'); assert.equal(fmtMs(1800), '1.8s'); assert.equal(fmtMs(12000), '12s'); });
+
+test('a service that never goes dark (downAfter >= 100) shows the reason without a counter', () => {
+  const r = deriveHealth({ service: { thresholds: { downAfter: 9999 } }, result: { ok: false, ms: 5, error: 'queue over limit: 37 open (max 30)' }, prev: { consecutiveFailures: 200 }, depsFailing: [], now: 0 });
+  assert.equal(r.health, 'failing');
+  assert.equal(r.detail, 'queue over limit: 37 open (max 30)');
+});

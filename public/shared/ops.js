@@ -58,7 +58,7 @@ export function deriveHealth({ service, result, prev, depsFailing = [], now = Da
   const fails = prevFails + 1, error = result.error || 'no response';
   if (depsFailing.length) return { health: 'failing', consecutiveFailures: fails, detail: `waiting on ${depsFailing.map((d) => d.name).join(', ')}`, rootCause: depsFailing[0].id };
   if (fails >= cfg.downAfter) return { health: 'down', consecutiveFailures: fails, detail: error };
-  return { health: 'failing', consecutiveFailures: fails, detail: `check failing (${fails}/${cfg.downAfter}): ${error}` };
+  return { health: 'failing', consecutiveFailures: fails, detail: cfg.downAfter >= 100 ? error : `check failing (${fails}/${cfg.downAfter}): ${error}` };   // downAfter >= 100 = "never goes dark" (queues): no counter
 }
 
 // ---------- history & uptime ----------
@@ -116,7 +116,7 @@ export function rebaseDemo(d, shiftMs) {
 }
 
 /** Fields that are safe to publish. Endpoints, headers and credentials are never part of a record. */
-export const PUBLIC_FIELDS = ['id', 'name', 'category', 'room', 'owner', 'tier', 'health', 'detail', 'latencyMs', 'uptime24h', 'uptime7d', 'lastCheck', 'since', 'consecutiveFailures', 'rootCause', 'onFloor'];
+export const PUBLIC_FIELDS = ['id', 'name', 'category', 'room', 'owner', 'tier', 'health', 'detail', 'latencyMs', 'uptime24h', 'uptime7d', 'lastCheck', 'since', 'consecutiveFailures', 'rootCause', 'onFloor', 'metrics'];
 export const toPublic = (rec) => Object.fromEntries(PUBLIC_FIELDS.filter((k) => rec[k] !== undefined).map((k) => [k, rec[k]]));
 
 // ---------- bridging to the office floor ----------

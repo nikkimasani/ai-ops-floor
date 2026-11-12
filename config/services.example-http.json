@@ -4,8 +4,18 @@
     "title": "AI Ops Floor",
     "intervalMin": 5,
     "categories": {
-      "ai-hub": { "label": "AI Hub Apps", "room": "bullpen" },
-      "azure-function": { "label": "Azure Function Apps", "room": "review" }
+      "ai-hub": {
+        "label": "AI Hub Apps",
+        "room": "bullpen"
+      },
+      "azure-function": {
+        "label": "Azure Function Apps",
+        "room": "review"
+      },
+      "ops-queue": {
+        "label": "Ticket Queues",
+        "room": "bullpen"
+      }
     }
   },
   "services": [
@@ -15,8 +25,16 @@
       "category": "ai-hub",
       "owner": "Your Team Name",
       "tier": 1,
-      "check": { "adapter": "http", "url": "https://REPLACE-ME.example.invalid/health", "expectStatus": 200, "timeoutMs": 8000 },
-      "thresholds": { "degradedMs": 2000, "downAfter": 3 }
+      "check": {
+        "adapter": "http",
+        "url": "https://REPLACE-ME.example.invalid/health",
+        "expectStatus": 200,
+        "timeoutMs": 8000
+      },
+      "thresholds": {
+        "degradedMs": 2000,
+        "downAfter": 3
+      }
     },
     {
       "id": "func-example",
@@ -28,8 +46,31 @@
       "check": {
         "adapter": "http",
         "url": "https://REPLACE-ME.example.invalid/api/health?code=env:FUNC_EXAMPLE_KEY",
-        "headers": { "x-functions-key": "env:FUNC_EXAMPLE_KEY" },
+        "headers": {
+          "x-functions-key": "env:FUNC_EXAMPLE_KEY"
+        },
         "expectBodyIncludes": "ok"
+      }
+    },
+    {
+      "id": "licence-requests",
+      "name": "Licence Requests Queue",
+      "category": "ops-queue",
+      "owner": "Your Team Name",
+      "tier": 2,
+      "check": {
+        "adapter": "servicenow",
+        "instance": "env:SN_INSTANCE",
+        "user": "env:SN_USER",
+        "password": "env:SN_PASSWORD",
+        "table": "incident",
+        "query": "active=true^assignment_group=REPLACE_WITH_GROUP_SYS_ID",
+        "maxOpen": 30,
+        "maxOldestHours": 72,
+        "slaHours": 48
+      },
+      "thresholds": {
+        "downAfter": 9999
       }
     }
   ]
