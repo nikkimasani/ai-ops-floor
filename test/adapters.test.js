@@ -214,3 +214,16 @@ test('limits compare unrounded values (30.25% inactive is over a 30% limit; 72.4
   assert.equal(snEvaluate([sn(72.4)], { maxOldestHours: 72 }, NOW).ok, false);
   assert.equal(snEvaluate([sn(71.9)], { maxOldestHours: 72 }, NOW).ok, true);
 });
+
+test('azure-monitor: concurrent checks share one token request, and a failed request is not reused', async () => {
+  _clearTokenCache();
+  const calls = [];
+  const slow = async (url, opts) => { await new Promise((r) => setTimeout(r, 20)); return azFetch({ calls })(url, opts); };
+  await Promise.all([1, 2, 3].map(() => azCheck(azCfg, { now: NOW, env: azEnv, fetch: slow })));
+  assert.equal(calls.filter((c) => c.url.includes('login.microsoftonline.com')).length, 1);
+  _clearTokenCache();
+  const bad = await azCheck(azCfg, { now: NOW, env: azEnv, fetch: azFetch({ tokenStatus: 500 }) });
+  assert.equal(bad.error, 'authentication failed');
+  const good = await azCheck(azCfg, { now: NOW, env: azEnv, fetch: azFetch() });
+  assert.equal(good.ok, true);
+});
