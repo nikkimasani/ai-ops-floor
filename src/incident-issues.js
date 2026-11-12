@@ -43,20 +43,17 @@ export async function syncIssues(plan, { repo, token, fetch: doFetch = fetch, lo
       out.opened[i.id] = { number: j.number, url: j.html_url };
     } catch { fail('open'); }
   }
-  if (plan.close.length) {
-    let openIssues = [];
-    let listed = false;
-    try { const res = await api('/issues?labels=incident&state=open&per_page=100'); if (res.ok) { openIssues = await res.json(); listed = true; } else fail('list', res); } catch { fail('list'); }
-    if (!listed) return out;                                              // can't tell what is open: leave everything pending for the next run
-    for (const i of plan.close) {
-      const issue = openIssues.find((x) => String(x.body || '').includes(`<!-- incident:${i.id} -->`));
-      if (!issue) { out.closedIds.push(i.id); continue; }                  // already closed (or deleted) elsewhere: nothing left to do
-      try {
-        await api(`/issues/${issue.number}/comments`, { method: 'POST', body: JSON.stringify({ body: `✅ Recovered after ${fmtMs(i.durationMs ?? i.end - i.start)}.` }) });
-        const res = await api(`/issues/${issue.number}`, { method: 'PATCH', body: JSON.stringify({ state: 'closed', state_reason: 'completed' }) });
-        if (res.ok) { out.closed++; out.closedIds.push(i.id); } else fail('close', res);
-      } catch { fail('close'); }
-    }
+  for (const i of plan.close) {                                          // look each issue up by number: no paging, no guessing
+    try {
+      const got = await api(`/issues/${i.issue}`);
+      if (got.status === 404 || got.status === 410) { out.closedIds.push(i.id); continue; }   // deleted: nothing left to do
+      if (!got.ok) { fail('read', got); continue; }
+      const issue = await got.json();
+      if (issue.state === 'closed') { out.closedIds.push(i.id); continue; }                    // already closed (maybe by a person)
+      await api(`/issues/${i.issue}/comments`, { method: 'POST', body: JSON.stringify({ body: `✅ Recovered after ${fmtMs(i.durationMs ?? i.end - i.start)}.` }) });
+      const res = await api(`/issues/${i.issue}`, { method: 'PATCH', body: JSON.stringify({ state: 'closed', state_reason: 'completed' }) });
+      if (res.ok) { out.closed++; out.closedIds.push(i.id); } else fail('close', res);
+    } catch { fail('close'); }
   }
   return out;
 }

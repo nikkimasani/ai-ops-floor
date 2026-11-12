@@ -64,7 +64,7 @@ test('syncIssues: creates the issue with name+tier only, comments and closes on 
   const fakeFetch = async (url, opts = {}) => {
     calls.push({ url: String(url), method: opts.method || 'GET', body: opts.body && JSON.parse(opts.body), auth: opts.headers?.Authorization });
     if (String(url).endsWith('/issues') && opts.method === 'POST') return { ok: true, status: 201, json: async () => ({ number: 42, html_url: 'https://github.com/o/r/issues/42' }) };
-    if (String(url).includes('state=open')) return { ok: true, status: 200, json: async () => [{ number: 42, body: issueBody({ id: 'a-1', name: 'A', start: 0 }) }] };
+    if (String(url).endsWith('/issues/42') && !opts.method) return { ok: true, status: 200, json: async () => ({ number: 42, state: 'open' }) };
     return { ok: true, status: 200, json: async () => ({}) };
   };
   const detail = { ...inc('a-1', 'a'), tier: 1, detail: 'timeout after 8s to secret-host.internal' };
@@ -103,16 +103,51 @@ test('ack CLI: records the ack from env, ignores non-acks', async () => {
   assert.match(await run({ COMMENT_BODY: '/ack', COMMENT_USER: 'octocat', ISSUE_BODY: issue }), /no change/);
 });
 
-test('syncIssues: a failed list or close leaves the closure pending; an already-closed issue counts as done', async () => {
+test('syncIssues: looks the issue up by number; failures stay pending; closed or deleted issues count as done', async () => {
   const rec = { ...inc('a-1', 'a', 61000), durationMs: 60000, issue: 42 };
-  const noList = await syncIssues({ open: [], close: [rec] }, { repo: 'o/r', token: 't', fetch: async () => ({ ok: false, status: 502 }), log: () => {} });
-  assert.deepEqual(noList.closedIds, [], 'list failed: stays pending, retried next run');
-  const gone = await syncIssues({ open: [], close: [rec] }, { repo: 'o/r', token: 't', fetch: async () => ({ ok: true, status: 200, json: async () => [] }), log: () => {} });
-  assert.deepEqual(gone.closedIds, ['a-1'], 'no open issue left for it: nothing more to do');
-  const closeFails = async (url, opts = {}) => (String(url).includes('state=open') ? { ok: true, status: 200, json: async () => [{ number: 42, body: issueBody({ id: 'a-1', name: 'A', start: 0 }) }] } : opts.method === 'PATCH' ? { ok: false, status: 500 } : { ok: true, status: 200, json: async () => ({}) });
-  const failed = await syncIssues({ open: [], close: [rec] }, { repo: 'o/r', token: 't', fetch: closeFails, log: () => {} });
+  const calls = [];
+  const mk = (read, patch = { ok: true, status: 200 }) => async (url, opts = {}) => {
+    calls.push(`${opts.method || 'GET'} ${String(url).replace('https://api.github.com/repos/o/r', '')}`);
+    if (!opts.method) return read;
+    return opts.method === 'PATCH' ? { ...patch, json: async () => ({}) } : { ok: true, status: 201, json: async () => ({}) };
+  };
+  const json = (state) => ({ ok: true, status: 200, json: async () => ({ number: 42, state }) });
+  const run = (read, patch) => syncIssues({ open: [], close: [rec] }, { repo: 'o/r', token: 't', fetch: mk(read, patch), log: () => {} });
+  assert.deepEqual((await run(json('open'))).closedIds, ['a-1']);
+  assert.ok(calls.includes('GET /issues/42') && calls.includes('PATCH /issues/42'), 'direct lookup by number, never a paged list');
+  assert.ok(!calls.some((c) => c.includes('per_page')), 'no listing');
+  calls.length = 0;
+  assert.deepEqual((await run(json('closed'))).closedIds, ['a-1'], 'already closed (by a person): done');
+  assert.ok(!calls.some((c) => c.startsWith('PATCH')), 'and not touched again');
+  assert.deepEqual((await run({ ok: false, status: 404 })).closedIds, ['a-1'], 'deleted: done');
+  assert.deepEqual((await run({ ok: false, status: 502 })).closedIds, [], 'GitHub error: stays pending, retried next run');
+  const failed = await run(json('open'), { ok: false, status: 500 });
   assert.deepEqual(failed.closedIds, []);
   assert.equal(failed.failed, 1);
+});
+
+test('reconcileAcks: picks up an /ack whose workflow run was cancelled, only from people with write or triage access', async () => {
+  const { reconcileAcks } = await import('../src/ack-reconcile.js');
+  const incidents = [{ ...inc('a-1', 'a'), issue: 5 }, { ...inc('b-1', 'b'), issue: 6 }, { ...inc('c-1', 'c') }];
+  const comments = { 5: [{ user: { login: 'drive-by' }, body: '/ack', created_at: '2026-11-12T01:00:00Z' }, { user: { login: 'octocat' }, body: 'on it\n/ack', created_at: '2026-11-12T01:05:00Z' }], 6: [{ user: { login: 'octocat' }, body: 'thanks', created_at: '2026-11-12T01:05:00Z' }] };
+  const roles = { 'drive-by': 'read', octocat: 'triage' };
+  const calls = [];
+  const fakeFetch = async (url) => {
+    calls.push(String(url));
+    const m = String(url).match(/issues\/(\d+)\/comments/), perm = String(url).match(/collaborators\/([^/]+)\/permission/);
+    if (m) return { ok: true, status: 200, json: async () => comments[m[1]] };
+    if (perm) return { ok: true, status: 200, json: async () => ({ role_name: roles[perm[1]] }) };
+    return { ok: false, status: 404 };
+  };
+  const acks = await reconcileAcks({}, incidents, { repo: 'o/r', token: 't', fetch: fakeFetch, log: () => {} });
+  assert.deepEqual(Object.keys(acks), ['a'], 'only the incident with an authorised /ack; none for b (no /ack) or c (no issue)');
+  assert.equal(acks.a.by, 'octocat', 'a read-only user is ignored');
+  assert.equal(acks.a.at, Date.parse('2026-11-12T01:05:00Z'));
+  const again = await reconcileAcks(acks, incidents, { repo: 'o/r', token: 't', fetch: fakeFetch, log: () => {} });
+  assert.deepEqual(again, acks, 'nothing new to record');
+  const none = await reconcileAcks({}, incidents, { repo: 'o/r', token: 't', fetch: async () => { throw new Error('boom'); }, log: () => {} });
+  assert.deepEqual(none, {}, 'GitHub unreachable: no change, no crash');
+  assert.deepEqual(await reconcileAcks({}, incidents, { repo: 'bad repo', token: '', fetch: fakeFetch }), {});
 });
 
 test('validAck: an ack only counts for the incident that is open now', async () => {

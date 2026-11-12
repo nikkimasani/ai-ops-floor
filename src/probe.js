@@ -13,6 +13,7 @@ import { loadConfig } from './config.js';
 import { planAlerts, sendAlerts } from './alerts.js';
 import { planIssues, syncIssues } from './incident-issues.js';
 import { loadAcks, saveAcks, pruneAcks } from './ack.js';
+import { reconcileAcks } from './ack-reconcile.js';
 import { DEFAULTS, SAMPLE, deriveHealth, mttrMs, summarize, toPublic, trimHistory, uptime, updateIncidents, activeMaintenance, DAY } from '../public/shared/ops.js';
 import { SEATS } from '../public/shared/layout.js';
 
@@ -109,7 +110,8 @@ async function main() {
     for (const id of r.closedIds) { const inc = next.incidents.find((i) => i.id === id); if (inc) inc.issueClosed = true; }   // until then, closing is retried every run
     for (const i of next.incidents) if (i.issue) links[i.id] = issueUrl(i.issue);
     for (const rec of next.status.services) { const o = next.incidents.find((i) => i.service === rec.id && i.end === null && i.issue); if (o) { rec.ackIssue = o.issue; rec.incidentId = o.id; } }   // lets the dashboard link to the issue
-    saveAcks(dir, pruneAcks(loadAcks(dir), next.incidents));          // acks end with their incident
+    const acks = await reconcileAcks(pruneAcks(loadAcks(dir), next.incidents), next.incidents, { repo: process.env.GITHUB_REPOSITORY, token: process.env.GITHUB_TOKEN });   // picks up any /ack whose workflow run was cancelled
+    saveAcks(dir, acks);                                              // acks end with their incident (pruned above)
     if (r.opened && Object.keys(r.opened).length) console.log(`incident issues: ${Object.keys(r.opened).length} opened`);
   }
   saveState(dir, next);

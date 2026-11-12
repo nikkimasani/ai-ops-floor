@@ -24,7 +24,7 @@ Lets the team see **who is on an incident**. Off by default. Design and reasonin
 ## What can go wrong
 - **Delay:** an ack shows up after the workflow finishes and the site redeploys (about 1-2 minutes). Until then the local *Acknowledge ✓* button hides it for you only.
 - **Only down incidents get issues.** A service that is merely *failing* (debouncing, or waiting on a dependency) has no issue, so it can only be acknowledged locally.
-- **Both workflows rewrite the `data` branch**, so they share one `concurrency` group and queue instead of overlapping.
+- **Both workflows rewrite the `data` branch**, so they share one `concurrency` group and queue instead of overlapping. GitHub keeps only **one pending run per group**, so a queued ack run can occasionally be cancelled by a newer run. That is harmless: every probe run also re-reads the comments on each open incident's issue and records any `/ack` from a person with write or triage access that is missing (worst case an ack appears one probe interval, about 5 minutes, later).
 - **If the issue can't be created** (permissions), the probe logs `incident issues: open failed (HTTP 403)` and keeps going; it retries on the next run.
 - **Not tested against real GitHub issue/permission APIs**: the code follows the documented REST endpoints and is tested against mocks. Try it with a test incident first.
 - `/ack` is parsed only from a line that *starts* with it (quoted replies and code blocks are ignored).
