@@ -12,16 +12,15 @@ import { validateConfig } from '../src/config.js';
 const inc = (id, service, end = null) => ({ id, service, name: service.toUpperCase(), start: 1000, end });
 
 test('parseAck: only a line that starts with /ack counts; quotes and code fences do not', () => {
-  assert.deepEqual(parseAck('/ack'), { ack: true, note: undefined });
-  assert.deepEqual(parseAck('/ack investigating, ticket INC-1'), { ack: true, note: 'investigating, ticket INC-1' });
-  assert.deepEqual(parseAck('looking now\n/ACK on it'), { ack: true, note: 'on it' });
+  assert.deepEqual(parseAck('/ack'), { ack: true });
+  assert.deepEqual(parseAck('/ack investigating, ticket INC-1'), { ack: true }, 'text after /ack is accepted but never kept');
+  assert.deepEqual(parseAck('looking now\n/ACK on it'), { ack: true });
   assert.equal(parseAck('> /ack').ack, false);
   assert.equal(parseAck('please /ack this').ack, false);
   assert.equal(parseAck('```\n/ack\n```').ack, false);
   assert.equal(parseAck('/acknowledge').ack, false);
   assert.equal(parseAck('').ack, false);
-  assert.equal(parseAck('/ack <script>alert(1)</script>').note, 'scriptalert(1)/script');
-  assert.equal(parseAck(`/ack ${'x'.repeat(500)}`).note.length, 140);
+  assert.ok(!('note' in parseAck('/ack https://secret-host.internal/token=abc')), 'free text is never part of the result');
 });
 
 test('incidentIdOf reads the marker from the issue body', () => {
@@ -32,10 +31,10 @@ test('incidentIdOf reads the marker from the issue body', () => {
 
 test('applyAck: first ack wins, later ones are listed, closed/unknown incidents and odd logins are ignored', () => {
   const incidents = [inc('a-1', 'a'), inc('b-1', 'b', 5000)];
-  const one = applyAck({}, { incidents, incidentId: 'a-1', by: 'octocat', at: 10, note: 'on it' });
-  assert.deepEqual(one, { a: { incidentId: 'a-1', by: 'octocat', at: 10, note: 'on it' } });
+  const one = applyAck({}, { incidents, incidentId: 'a-1', by: 'octocat', at: 10, note: 'secret-host.internal' });
+  assert.deepEqual(one, { a: { incidentId: 'a-1', by: 'octocat', at: 10 } }, 'a note passed in is never stored');
   const two = applyAck(one, { incidents, incidentId: 'a-1', by: 'hubot', at: 20 });
-  assert.deepEqual(two.a, { incidentId: 'a-1', by: 'octocat', at: 10, note: 'on it', also: ['hubot'] });
+  assert.deepEqual(two.a, { incidentId: 'a-1', by: 'octocat', at: 10, also: ['hubot'] });
   assert.equal(applyAck(two, { incidents, incidentId: 'a-1', by: 'octocat', at: 30 }), two, 'same person again: no change');
   assert.equal(Object.keys(applyAck({}, { incidents, incidentId: 'b-1', by: 'octocat', at: 1 })).length, 0, 'closed incident');
   assert.equal(Object.keys(applyAck({}, { incidents, incidentId: 'zzz', by: 'octocat', at: 1 })).length, 0, 'unknown incident');
@@ -52,7 +51,11 @@ test('planIssues: open for new incidents, close on recovery, retry an open incid
   const svc = [{ id: 'a', tier: 1 }];
   assert.deepEqual(planIssues([], [inc('a-1', 'a')], svc).open.map((i) => [i.id, i.tier]), [['a-1', 1]]);
   assert.deepEqual(planIssues([inc('a-1', 'a')], [{ ...inc('a-1', 'a'), issue: 7 }], svc), { open: [], close: [] });
-  assert.deepEqual(planIssues([inc('a-1', 'a')], [inc('a-1', 'a', 9000)], svc).close.map((i) => i.id), ['a-1']);
+  assert.deepEqual(planIssues([inc('a-1', 'a')], [{ ...inc('a-1', 'a', 9000), issue: 7 }], svc).close.map((i) => i.id), ['a-1']);
+  const retry = { ...inc('a-1', 'a', 9000), issue: 7 };
+  assert.deepEqual(planIssues([retry], [retry], svc).close.map((i) => i.id), ['a-1'], 'a recovery whose close failed is retried on later runs');
+  assert.deepEqual(planIssues([retry], [{ ...retry, issueClosed: true }], svc).close, [], 'once closed, never again');
+  assert.deepEqual(planIssues([inc('a-1', 'a', 9000)], [inc('a-1', 'a', 9000)], svc).close, [], 'no issue was ever created: nothing to close');
   assert.deepEqual(planIssues([inc('a-1', 'a')], [inc('a-1', 'a')], svc).open.map((i) => i.id), ['a-1'], 'no issue yet: retry');
 });
 
@@ -71,8 +74,9 @@ test('syncIssues: creates the issue with name+tier only, comments and closes on 
   assert.equal(created.title, 'Incident: A');
   assert.deepEqual(created.labels, ['incident']);
   assert.ok(!JSON.stringify(created).includes('secret-host'), 'no error detail in the issue');
-  const c = await syncIssues({ open: [], close: [{ ...inc('a-1', 'a', 61000), durationMs: 60000 }] }, { repo: 'o/r', token: 'ghs_SECRET', fetch: fakeFetch, log: (m) => logs.push(m) });
+  const c = await syncIssues({ open: [], close: [{ ...inc('a-1', 'a', 61000), durationMs: 60000, issue: 42 }] }, { repo: 'o/r', token: 'ghs_SECRET', fetch: fakeFetch, log: (m) => logs.push(m) });
   assert.equal(c.closed, 1);
+  assert.deepEqual(c.closedIds, ['a-1']);
   assert.ok(calls.some((x) => x.method === 'PATCH' && x.body.state === 'closed'));
   assert.ok(calls.some((x) => x.url.endsWith('/issues/42/comments') && /Recovered after/.test(x.body.body)));
   const bad = await syncIssues({ open: [detail], close: [] }, { repo: 'o/r', token: 'ghs_SECRET', fetch: async () => ({ ok: false, status: 403 }), log: (m) => logs.push(m) });
@@ -92,8 +96,30 @@ test('ack CLI: records the ack from env, ignores non-acks', async () => {
   const run = (env) => promisify(execFile)('node', ['src/ack.js', '--data', dir], { env: { ...process.env, ...env } }).then((r) => r.stdout);
   const issue = issueBody({ id: 'a-1', name: 'A', start: 0 });
   assert.match(await run({ COMMENT_BODY: 'thanks all', COMMENT_USER: 'octocat', ISSUE_BODY: issue }), /nothing to do/);
-  assert.match(await run({ COMMENT_BODY: '/ack on it', COMMENT_USER: 'octocat', ISSUE_BODY: issue }), /acknowledged a-1 by octocat/);
+  assert.match(await run({ COMMENT_BODY: '/ack on it, see https://secret-host.internal', COMMENT_USER: 'octocat', ISSUE_BODY: issue }), /acknowledged a-1 by octocat/);
   const acks = JSON.parse(readFileSync(join(dir, 'acks.json'), 'utf8'));
-  assert.equal(acks.a.by, 'octocat'); assert.equal(acks.a.note, 'on it');
+  assert.equal(acks.a.by, 'octocat');
+  assert.ok(!JSON.stringify(acks).includes('secret-host'), 'the note never reaches the published file');
   assert.match(await run({ COMMENT_BODY: '/ack', COMMENT_USER: 'octocat', ISSUE_BODY: issue }), /no change/);
+});
+
+test('syncIssues: a failed list or close leaves the closure pending; an already-closed issue counts as done', async () => {
+  const rec = { ...inc('a-1', 'a', 61000), durationMs: 60000, issue: 42 };
+  const noList = await syncIssues({ open: [], close: [rec] }, { repo: 'o/r', token: 't', fetch: async () => ({ ok: false, status: 502 }), log: () => {} });
+  assert.deepEqual(noList.closedIds, [], 'list failed: stays pending, retried next run');
+  const gone = await syncIssues({ open: [], close: [rec] }, { repo: 'o/r', token: 't', fetch: async () => ({ ok: true, status: 200, json: async () => [] }), log: () => {} });
+  assert.deepEqual(gone.closedIds, ['a-1'], 'no open issue left for it: nothing more to do');
+  const closeFails = async (url, opts = {}) => (String(url).includes('state=open') ? { ok: true, status: 200, json: async () => [{ number: 42, body: issueBody({ id: 'a-1', name: 'A', start: 0 }) }] } : opts.method === 'PATCH' ? { ok: false, status: 500 } : { ok: true, status: 200, json: async () => ({}) });
+  const failed = await syncIssues({ open: [], close: [rec] }, { repo: 'o/r', token: 't', fetch: closeFails, log: () => {} });
+  assert.deepEqual(failed.closedIds, []);
+  assert.equal(failed.failed, 1);
+});
+
+test('validAck: an ack only counts for the incident that is open now', async () => {
+  const { validAck } = await import('../public/shared/ops.js');
+  const acks = { a: { incidentId: 'a-1', by: 'octocat', at: 1 } };
+  assert.equal(validAck(acks, [{ id: 'a', incidentId: 'a-1' }], 'a').by, 'octocat');
+  assert.equal(validAck(acks, [{ id: 'a', incidentId: 'a-2' }], 'a'), null, 'a newer incident: the old ack does not apply');
+  assert.equal(validAck(acks, [{ id: 'a' }], 'a'), null, 'no open incident known: not acknowledged');
+  assert.equal(validAck({}, [{ id: 'a', incidentId: 'a-1' }], 'a'), null);
 });

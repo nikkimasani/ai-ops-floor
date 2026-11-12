@@ -20,7 +20,7 @@
 
 ## Recommended: C, "comment `/ack`"
 1. Each open incident has a tracking **GitHub issue** (a workflow step opens it when the incident opens and closes it on recovery; title `Incident: <service>`; body has the incident id).
-2. The dashboard's **Acknowledge** button opens that issue's "new comment" page (a plain link; no API call). The team member comments `/ack` (optionally `/ack investigating, ticket INC-123`).
+2. The dashboard's **Acknowledge** button opens that issue's "new comment" page (a plain link; no API call). The team member comments `/ack` (.
 3. A workflow on `issue_comment` verifies the commenter has **write or triage permission** on the repo, then writes `{ incidentId, by: <github login>, at, note }` into `acks.json` on the `data` branch (same mechanism as the other data files) and re-deploys Pages.
 4. The dashboard reads `acks.json` and shows **"Acknowledged by @login, 12m ago"** on the card, Board and floor bubble; the 🙋 needs-me list drops it.
 5. Acks end automatically when the incident closes. Local browser acks stay as the fallback when the feature is off.

@@ -117,6 +117,12 @@ export function rebaseDemo(d, shiftMs) {
 
 /** Fields that are safe to publish. Endpoints, headers and credentials are never part of a record. */
 export const PUBLIC_FIELDS = ['id', 'name', 'category', 'room', 'owner', 'tier', 'health', 'detail', 'latencyMs', 'uptime24h', 'uptime7d', 'lastCheck', 'since', 'consecutiveFailures', 'rootCause', 'onFloor', 'metrics', 'dependsOn'];
+/** An ack only counts for the incident that is open NOW. Cached or out-of-date acks for an older incident are ignored. */
+export const validAck = (acks, services, id) => {
+  const k = acks?.[id], svc = services?.find((x) => x.id === id);
+  return k && svc?.incidentId && svc.incidentId === k.incidentId ? k : null;
+};
+
 // ---------- dependency graph ----------
 /**
  * Layered dependency graph for the Board. Layer 0 = services that depend on nothing; a service sits one layer

@@ -1,7 +1,8 @@
 // Shared acknowledgements. A teammate comments `/ack` on an incident's GitHub issue; the ack workflow (which has
 // already checked the commenter's repo permission) runs this to record WHO acknowledged WHICH service.
 //
-// acks.json:  { "<serviceId>": { incidentId, by: "<github login>", at: <ms>, note?: "...", also?: ["<login>", ...] } }
+// acks.json:  { "<serviceId>": { incidentId, by: "<github login>", at: <ms>, also?: ["<login>", ...] } }
+// Free-text notes after `/ack` are NOT recorded here (this file is published): they stay on the incident issue.
 // First ack wins; later ones are added to `also`. Acks vanish when their incident closes (pruneAcks).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,28 +16,27 @@ export const incidentIdOf = (issueBody) => String(issueBody || '').match(MARKER)
 
 /**
  * Does this comment acknowledge? Only a line that STARTS with `/ack` counts: quoted replies (`> /ack`) and code
- * fences are ignored. The note is the rest of that line, plain text, capped at 140 chars.
+ * fences are ignored. Anything after `/ack` is ignored (it remains visible on the issue, but is never published).
  */
 export function parseAck(body) {
   let fenced = false;
   for (const raw of String(body || '').split(/\r?\n/)) {
     if (/^\s*(```|~~~)/.test(raw)) { fenced = !fenced; continue; }
     if (fenced) continue;
-    const m = raw.match(/^\/ack(?:\s+(.*))?$/i);
-    if (m) return { ack: true, note: (m[1] || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 140) || undefined };
+    if (/^\/ack(?:\s.*)?$/i.test(raw)) return { ack: true };
   }
   return { ack: false };
 }
 
 /** Pure: record an ack for the service whose open incident has this id. Returns a new acks object. */
-export function applyAck(acks, { incidents, incidentId, by, at, note }) {
+export function applyAck(acks, { incidents, incidentId, by, at }) {
   const inc = incidents.find((i) => i.id === incidentId && i.end === null);
   if (!inc || !LOGIN.test(String(by))) return acks;                     // unknown/closed incident or odd login: ignore
   const next = { ...acks }, cur = next[inc.service];
   if (cur && cur.incidentId === inc.id) {
     if (cur.by === by || (cur.also || []).includes(by)) return acks;
     next[inc.service] = { ...cur, also: [...(cur.also || []), by].slice(0, 10) };
-  } else next[inc.service] = { incidentId: inc.id, by, at, ...(note && { note }) };
+  } else next[inc.service] = { incidentId: inc.id, by, at };
   return next;
 }
 
@@ -53,12 +53,12 @@ export function saveAcks(dir, acks) { mkdirSync(dir, { recursive: true }); write
 // CLI, run by .github/workflows/ack.yml. Inputs come from env (never interpolated into a shell command).
 async function main() {
   const dir = process.argv[process.argv.indexOf('--data') + 1] || 'public/data';
-  const { ack, note } = parseAck(process.env.COMMENT_BODY);
+  const { ack } = parseAck(process.env.COMMENT_BODY);
   const incidentId = incidentIdOf(process.env.ISSUE_BODY);
   if (!ack || !incidentId) { console.log('not an acknowledgement of a tracked incident: nothing to do'); return; }
   const incidents = readJson(join(dir, 'incidents.json'), []);
   const before = loadAcks(dir);
-  const after = applyAck(before, { incidents, incidentId, by: process.env.COMMENT_USER, at: Date.now(), note });
+  const after = applyAck(before, { incidents, incidentId, by: process.env.COMMENT_USER, at: Date.now() });
   if (after === before) { console.log('no change (unknown or closed incident, or already acknowledged by this person)'); return; }
   saveAcks(dir, after);
   console.log(`acknowledged ${incidentId} by ${process.env.COMMENT_USER}`);

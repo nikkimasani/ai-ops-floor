@@ -7,8 +7,8 @@ Lets the team see **who is on an incident**. Off by default. Design and reasonin
 
 ## How it works
 1. When a service goes **down**, the probe opens an issue `Incident: <service>` (label `incident`). The webhook alert links to it.
-2. A teammate comments `/ack` (optionally `/ack investigating, ticket INC-123`) on that issue.
-3. `.github/workflows/ack.yml` checks the commenter has **write, maintain, admin or triage** access, records `{ by, at, note }` in `acks.json` on the `data` branch, and re-runs the probe so the dashboard redeploys.
+2. A teammate comments `/ack` on that issue. Add any notes as normal comments: **text after `/ack` is not published**, because `acks.json` is a published file. Notes stay on the issue.
+3. `.github/workflows/ack.yml` checks the commenter has **write, maintain, admin or triage** access, records `{ by, at }` in `acks.json` on the `data` branch, and re-runs the probe so the dashboard redeploys.
 4. The dashboard shows "✓ Acknowledged by @login · 12m ago" on the card and inspector, and the service leaves everyone's 🙋 needs-me list.
 5. When the service recovers, the probe comments "Recovered after …", closes the issue and drops the ack.
 
@@ -27,4 +27,6 @@ Lets the team see **who is on an incident**. Off by default. Design and reasonin
 - **Both workflows rewrite the `data` branch**, so they share one `concurrency` group and queue instead of overlapping.
 - **If the issue can't be created** (permissions), the probe logs `incident issues: open failed (HTTP 403)` and keeps going; it retries on the next run.
 - **Not tested against real GitHub issue/permission APIs**: the code follows the documented REST endpoints and is tested against mocks. Try it with a test incident first.
-- `/ack` is parsed only from a line that *starts* with it (quoted replies and code blocks are ignored); the note is plain text, 140 characters.
+- `/ack` is parsed only from a line that *starts* with it (quoted replies and code blocks are ignored).
+- An ack only counts for the incident open *now*: the dashboard compares the ack's incident id with the service's current one, so an old or cached ack never hides a new outage.
+- If closing an issue fails (or GitHub can't be listed), the closure stays pending and is retried on every run until it succeeds.

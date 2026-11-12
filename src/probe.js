@@ -106,8 +106,9 @@ async function main() {
   if (config.site.sharedAcks && !config.site.demo) {
     const r = await syncIssues(planIssues(prev.incidents, next.incidents, config.services), { repo: process.env.GITHUB_REPOSITORY, token: process.env.GITHUB_TOKEN });
     for (const [id, v] of Object.entries(r.opened)) { const inc = next.incidents.find((i) => i.id === id); if (inc) inc.issue = v.number; }
+    for (const id of r.closedIds) { const inc = next.incidents.find((i) => i.id === id); if (inc) inc.issueClosed = true; }   // until then, closing is retried every run
     for (const i of next.incidents) if (i.issue) links[i.id] = issueUrl(i.issue);
-    for (const rec of next.status.services) { const o = next.incidents.find((i) => i.service === rec.id && i.end === null && i.issue); if (o) rec.ackIssue = o.issue; }   // lets the dashboard link to the issue
+    for (const rec of next.status.services) { const o = next.incidents.find((i) => i.service === rec.id && i.end === null && i.issue); if (o) { rec.ackIssue = o.issue; rec.incidentId = o.id; } }   // lets the dashboard link to the issue
     saveAcks(dir, pruneAcks(loadAcks(dir), next.incidents));          // acks end with their incident
     if (r.opened && Object.keys(r.opened).length) console.log(`incident issues: ${Object.keys(r.opened).length} opened`);
   }

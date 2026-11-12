@@ -208,7 +208,7 @@ function renderFeed() {
 }
 
 const needs = () => {
-  const out = Object.values(S.agents).filter((a) => ['asking', 'ready', 'dark', 'blocked'].includes(a.status) && !(a.meta?.ops && (S.acks[a.id] === a.since || S.sharedAcks?.[a.id])))
+  const out = Object.values(S.agents).filter((a) => ['asking', 'ready', 'dark', 'blocked'].includes(a.status) && !(a.meta?.ops && (S.acks[a.id] === a.since || ops.ackOf(a.id))))
     .map((a) => ({ kind: a.status, a, since: a.since || 0 }));
   for (const w of S.walkins) out.push({ kind: 'walkin', w, since: w.ts || 0 });
   return out.sort((x, y) => x.since - y.since);

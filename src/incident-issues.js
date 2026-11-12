@@ -14,7 +14,7 @@ export function planIssues(prevIncidents = [], nextIncidents = [], services = []
   for (const i of nextIncidents) {
     const before = prev.get(i.id);
     if (!before && i.end === null) open.push({ ...i, tier: tier.get(i.service) });
-    else if (before && before.end === null && i.end !== null) close.push({ ...i, tier: tier.get(i.service) });
+    else if (i.end !== null && i.issue && !i.issueClosed) close.push({ ...i, tier: tier.get(i.service) });   // recovered but its issue is still open (also retries earlier failures)
     else if (i.end === null && !i.issue && before) open.push({ ...i, tier: tier.get(i.service) });   // open incident that never got an issue (earlier failure): retry
   }
   return { open, close };
@@ -30,7 +30,7 @@ export const issueTitle = (i) => `Incident: ${i.name}`;
 
 /** Create/close issues. Returns { opened: {incidentId: {number, url}}, closed, failed }. Never throws. */
 export async function syncIssues(plan, { repo, token, fetch: doFetch = fetch, log = console.warn }) {
-  const out = { opened: {}, closed: 0, failed: 0 };
+  const out = { opened: {}, closed: 0, closedIds: [], failed: 0 };
   if (!plan.open.length && !plan.close.length) return out;
   if (!/^[\w.-]+\/[\w.-]+$/.test(String(repo)) || !token) { log('incident issues: GITHUB_REPOSITORY / GITHUB_TOKEN not available, skipping'); out.failed = plan.open.length + plan.close.length; return out; }
   const api = (path, opts = {}) => doFetch(`https://api.github.com/repos/${repo}${path}`, { ...opts, headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'ai-ops-floor', 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000) });
@@ -45,14 +45,16 @@ export async function syncIssues(plan, { repo, token, fetch: doFetch = fetch, lo
   }
   if (plan.close.length) {
     let openIssues = [];
-    try { const res = await api('/issues?labels=incident&state=open&per_page=100'); if (res.ok) openIssues = await res.json(); else fail('list', res); } catch { fail('list'); }
+    let listed = false;
+    try { const res = await api('/issues?labels=incident&state=open&per_page=100'); if (res.ok) { openIssues = await res.json(); listed = true; } else fail('list', res); } catch { fail('list'); }
+    if (!listed) return out;                                              // can't tell what is open: leave everything pending for the next run
     for (const i of plan.close) {
       const issue = openIssues.find((x) => String(x.body || '').includes(`<!-- incident:${i.id} -->`));
-      if (!issue) continue;
+      if (!issue) { out.closedIds.push(i.id); continue; }                  // already closed (or deleted) elsewhere: nothing left to do
       try {
         await api(`/issues/${issue.number}/comments`, { method: 'POST', body: JSON.stringify({ body: `✅ Recovered after ${fmtMs(i.durationMs ?? i.end - i.start)}.` }) });
         const res = await api(`/issues/${issue.number}`, { method: 'PATCH', body: JSON.stringify({ state: 'closed', state_reason: 'completed' }) });
-        if (res.ok) out.closed++; else fail('close', res);
+        if (res.ok) { out.closed++; out.closedIds.push(i.id); } else fail('close', res);
       } catch { fail('close'); }
     }
   }

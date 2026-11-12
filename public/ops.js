@@ -1,7 +1,7 @@
 // Ops wording for the floor: how health shows up in the legend, feed, inbox and the service card.
 // (Pure presentation. The rules that decide health live in shared/ops.js.)
 import { STATUS_ICON } from './render.js';
-import { fmtMs } from './shared/ops.js';
+import { fmtMs, validAck } from './shared/ops.js';
 
 export const STATUS_LABEL = { working: 'HEALTHY', thinking: 'DEGRADED', blocked: 'FAILING', dark: 'DOWN', bench: 'MAINTENANCE', idle: 'UNKNOWN', asking: 'NEEDS DECISION', ready: 'READY', done: 'DONE' };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -28,10 +28,11 @@ export function noteTransition(prev, a, push, nm) {
   }
 }
 
-let sharedAcks = {}, repo = '';
+let sharedAcks = {}, repo = '', services = [];
 /** Shared acknowledgements ("who is on it"): { serviceId: { by, at, note } }. Empty unless site.sharedAcks is on. */
-export const ackOf = (id) => sharedAcks[id] || null;
-export const ackLabel = (k) => (k ? `✓ Acknowledged by @${esc(k.by)}${k.also?.length ? ` +${k.also.length}` : ''} · ${ago(k.at)}${k.note ? ` · “${esc(k.note)}”` : ''}` : '');
+/** An ack only counts for the incident that is open NOW: a stale or cached ack for an older incident is ignored. */
+export const ackOf = (id) => validAck(sharedAcks, services, id);
+export const ackLabel = (k) => (k ? `✓ Acknowledged by @${esc(k.by)}${k.also?.length ? ` +${k.also.length}` : ''} · ${ago(k.at)}` : '');
 export const ackLink = (issue) => (repo && issue ? `https://github.com/${repo}/issues/${Number(issue)}#new_comment_field` : '');
 export function actionButtons(a, b) {
   if (!['dark', 'blocked'].includes(a.status)) return '';
@@ -61,6 +62,7 @@ export function inspectHtml(a, { nm, roomLabel, feed, buttons }) {
 /** Header chip, stale banner and data-age badge. */
 export function onMeta(m, $, now = Date.now()) {
   sharedAcks = m.acks || {}; repo = m.data?.site?.repo || '';
+  services = m.data?.services || [];
   const d = m.data, banner = $('staleBanner');
   if (!d) { $('mode').textContent = 'no data'; $('mode').className = 'badge'; banner.hidden = false; banner.textContent = m.error ? `Can’t load status data (${m.error}). Showing what we last had.` : 'No status data yet.'; return; }
   const s = d.summary || {}, bad = (s.failing || 0) + (s.down || 0);
