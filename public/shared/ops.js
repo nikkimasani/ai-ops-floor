@@ -205,7 +205,7 @@ export function diffForFloor(current, records, roomLabels = {}, floor = 1) {
   for (const r of next.values()) {
     const prev = current.get(r.id), floor = FLOOR_STATUS[r.health];
     if (!prev) {
-      events.push({ type: 'agent_join', info: { id: r.id, name: r.name, role: roomLabels[r.room] || r.category, room: r.room, since: r.since, ...appearanceFor(r.id), meta: metaOf(r) } });
+      events.push({ type: 'agent_join', info: { id: r.id, name: r.name, role: roomLabels[r.room] || r.category, room: r.room, since: r.since, ...(r.seatless && { seatless: true }), ...appearanceFor(r.id), meta: metaOf(r) } });
       events.push(...statusEvents(r, floor, true));
     } else if (prev.health !== r.health || prev.detail !== r.detail || prev.latencyMs !== r.latencyMs || prev.lastCheck !== r.lastCheck) {
       events.push(...statusEvents(r, floor, prev.health !== r.health));

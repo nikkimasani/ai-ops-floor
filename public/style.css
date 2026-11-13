@@ -175,3 +175,21 @@ body.boardOpen { overflow: hidden; }
 .floors .flbad{margin-left:6px;background:#f0647a;color:#fff;border-radius:9px;padding:0 6px;font-size:11px}
 .ackd{display:inline-block;margin:4px 0;padding:3px 9px;border-radius:10px;background:#e3f6ec;color:#23704a;font-size:12px;font-weight:600}
 .ackl{display:inline-block;margin:4px 0;font-size:12px;font-weight:600;color:#7a4fd0}
+/* ---- My Queue (local mode) ---- */
+#queuePanel{position:fixed;top:64px;left:16px;z-index:11;width:min(400px,calc(100vw - 32px));max-height:calc(100vh - 88px);overflow:auto;padding:14px 16px 16px;background:rgba(255,255,255,.96);border:1px solid rgba(179,135,245,.35);border-radius:18px;box-shadow:0 12px 40px rgba(120,80,170,.22)}
+#queuePanel .qhead{display:flex;justify-content:space-between;align-items:center;font-size:16px}
+#queuePanel h5{margin:14px 0 6px}
+.qitem{border:1px solid rgba(179,135,245,.3);border-radius:14px;padding:10px 12px;margin:0 0 8px;background:#fff}
+.qitem.next{border-color:#b387f5;box-shadow:0 0 0 3px rgba(179,135,245,.18);background:#fbf7ff}
+.qtop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.qsrc{font-size:11px;font-weight:700;padding:1px 8px;border-radius:9px;background:#ece6f5;color:#5a4a78}
+.qsrc.servicenow{background:#e3f6ec;color:#23704a}.qsrc.ado{background:#e0edff;color:#2a5aa8}
+.qpri{font-size:11px;font-weight:800;padding:1px 7px;border-radius:9px;background:#eee;color:#555}
+.qpri.p1{background:#ffe3e8;color:#c0304e}.qpri.p2{background:#fff0d2;color:#a8660d}
+.qstate{margin-left:auto;font-size:12px;color:#7a6a92}
+.qtitle{margin:6px 0 2px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.qmeta{font-size:12px;color:#7a6a92;margin-bottom:6px}
+.qact{display:flex;gap:6px;flex-wrap:wrap}
+.qresult{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,monospace;background:#faf7ff;border:1px solid rgba(179,135,245,.3);border-radius:10px;padding:10px;max-height:260px;overflow:auto}
+.qempty{text-align:center;padding:18px 0;color:#7a6a92}
+@media (max-width:640px){#queuePanel{left:8px;right:8px;width:auto;top:60px}}

@@ -4,12 +4,16 @@
   "description": "A friendly health board for AI tools and Azure Function apps: services are little characters on an office floor. Demo data only until you connect real sources.",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node scripts/serve.js",
     "probe": "node src/probe.js",
     "validate": "node scripts/validate-config.js",
     "demo-data": "node src/demo-data.js",
-    "test": "node --test"
+    "test": "node --test",
+    "queue": "node src/queue/cli.js",
+    "queue:demo": "node src/queue/cli.js --demo"
   }
 }

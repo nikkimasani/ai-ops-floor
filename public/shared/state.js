@@ -107,7 +107,7 @@ export class Office {
       case 'agent_join': {
         const i = ev.info;
         need(i && typeof i.id === 'string' && i.id && !this.agents[i.id], 'agent_join needs a new id');
-        need(this.freeSeat(i.room || 'bullpen') >= 0, 'office is full');
+        need(i.seatless || this.freeSeat(i.room || 'bullpen') >= 0, 'office is full');   // seatless (My Queue triage agents) may wait off duty when every desk is taken
         ev.info = this.pub(this.#add(i));
         break;
       }

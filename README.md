@@ -52,6 +52,7 @@ Two rules worth knowing:
 
 - **Floor** — tap a character for its service card. **🙋 needs me** lists down/failing services you haven't
   acknowledged. *Acknowledge* hides one from that list (in your browser only) until its state changes.
+- **📥 My Queue** (local only: `npm run queue:demo`) — your assigned ServiceNow and Azure DevOps items in one calm order, with a triage agent per new assignment. See [docs/MY-QUEUE.md](docs/MY-QUEUE.md).
 - **📋 Board** — tiles (healthy / degraded / failing / down / maintenance, 24h uptime, MTTR), filters, one card per
   service with a 24h latency sparkline, and the incident log.
 - **Everything else from the original office still works** (furniture, looks, themes) — but Fun mode (visitors,

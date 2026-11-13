@@ -17,6 +17,14 @@ export function noteTransition(prev, a, push, nm) {
   if (!prev || prev === a.status) return;
   const add = (cat, icon, text, attn = false) => push({ cat, icon, id: a.id, text, attn });
   const why = a.note || a.blocker || a.task || '';
+  if (a.meta?.category === 'triage') {                       // My Queue's triage agents talk about tickets, not service health
+    const ref = String(a.name).replace(/^Triage\s+/, '');
+    if (a.status === 'blocked') add('failing', '⚠️', `Triage of ${ref} failed: ${why}`, true);
+    else if (a.status === 'working') add('all', '🤖', `Triage agent is working on ${ref}`);
+    else if (a.status === 'thinking') add('all', '📥', `${ref} assigned to you: ready to triage`);
+    else if (a.status === 'bench') add('recovered', '✅', `Triage of ${ref} is ready to read`);
+    return;
+  }
   switch (a.status) {
     case 'dark': add('dark', '🥀', `${nm(a)} is DOWN: ${why}`, true); break;
     case 'blocked': add('failing', '🚧', `${nm(a)} is failing: ${why}`, true); break;

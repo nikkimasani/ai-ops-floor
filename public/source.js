@@ -43,7 +43,9 @@ export async function connect(h) {
     const labelByRoom = {};
     for (const c of Object.values(d.site?.categories || {})) { if (labelByRoom[c.room]) continue; labelByRoom[c.room] = c.label; if (ROOMS[c.room]) ROOMS[c.room].label = c.label; }   // first category names a shared room
     // Stale data must never read as "all healthy": every service drops to "unknown" until probes resume.
-    const records = stale ? d.services.map((s) => ({ ...s, health: 'unknown', detail: 'data is stale: probes may have stopped' })) : d.services;
+    const services = stale ? d.services.map((s) => ({ ...s, health: 'unknown', detail: 'data is stale: probes may have stopped' })) : d.services;
+    const local = (h.extraRecords?.() || []).map((r) => ({ ...r, floor }));   // My Queue's triage agents (local mode only): shown on whichever floor you are viewing
+    const records = [...services, ...local];
     const { events, next } = diffForFloor(current, records, labelByRoom, floor);
     current = next;
     for (const ev of events) { try { office.emit(ev); } catch (err) { console.warn('skipped event', ev.type, err.message); } }
@@ -73,6 +75,7 @@ export async function connect(h) {
     walkin: async () => ({ error: 'view-only' }),
     dispatch: async () => ({ error: 'view-only' }),
     refresh: tick,
+    reapply: () => { if (lastData) apply(lastData); },          // re-evaluate the floor without refetching (My Queue calls this when its agents change)
     floor: () => floor,
     // Swap floors without refetching: a fresh office for the new floor, handed to the page as a snapshot (instant, no walking and no feed noise).
     setFloor: (n) => {
