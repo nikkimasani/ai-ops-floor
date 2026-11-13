@@ -114,6 +114,8 @@ export function onTap(sx, sy) {
     remember(); Object.assign(it, next); moving = false; commit(); refresh(); return true;
   }
   if (brush) {
+    const onPiece = hitTest(sx, sy);
+    if (onPiece) { brush = null; ghost = null; selected = onPiece.uid; refresh(); C.h.toast(`${CATALOG[onPiece.id].name} selected: Rotate, Move or Remove`); return true; }   // tapping a placed piece selects it, never stacks another on top
     const next = centredOn({ uid: uid(), id: brush, rot: brushRot }, x, y), res = canPlace(next, items);
     if (!res.ok) { C.h.toast(res.reason); return true; }
     remember(); items.push(next); commit(); C.fx?.sparkle?.(next);
@@ -121,6 +123,18 @@ export function onTap(sx, sy) {
   }
   const hit = hitTest(sx, sy);
   selected = hit ? hit.uid : null; refresh();
+  return true;
+}
+
+/** Outside Edit Office: tapping a placed piece opens Edit Office with that piece selected. Returns true if it did. */
+export function openPieceAt(sx, sy) {
+  if (editing) return false;
+  const hit = hitTest(sx, sy);
+  if (!hit) return false;
+  editing = true; brush = null; moving = false; ghost = null; selected = hit.uid;
+  $('editTray').hidden = false; document.body.classList.add('editing');
+  refresh();
+  C.h.toast(`${CATALOG[hit.id].name}: Rotate, Move or Remove below, then Done`);
   return true;
 }
 

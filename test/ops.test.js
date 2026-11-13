@@ -257,3 +257,24 @@ test('a seatless agent never takes a desk, even when desks are free, so a servic
   assert.deepEqual(step([...services, mk('tri:A', { seatless: true }), mk('last-service')]), [], 'the last desk is still there for a service');
   assert.ok(office.agents['last-service'].seat >= 0);
 });
+
+// ---------- calm bubbles ----------
+test('chooseBubbles: calm shows only the most urgent problem plus the tapped character; all shows the busy view', async () => {
+  const { chooseBubbles } = await import('../public/shared/bubbles.js');
+  const agents = [
+    { id: 'slow', status: 'thinking', since: 1 }, { id: 'failA', status: 'blocked', since: 5 }, { id: 'failB', status: 'blocked', since: 2 },
+    { id: 'down', status: 'dark', since: 9 }, { id: 'ok', status: 'working', since: 1 },
+  ];
+  const calm = chooseBubbles(agents, { mode: 'calm', zoomedIn: true });
+  assert.deepEqual([...calm.problems], ['down'], 'down beats failing, even if it started later');
+  assert.equal(calm.latency, false);
+  assert.equal(calm.chatter, false);
+  assert.deepEqual([...chooseBubbles(agents, { mode: 'calm', selected: 'ok' }).problems].sort(), ['down', 'ok']);
+  assert.deepEqual([...chooseBubbles(agents.filter((a) => a.id !== 'down'), { mode: 'calm' }).problems], ['failB'], 'oldest failing next');
+  assert.equal(chooseBubbles(agents, { mode: 'calm', fun: true }).chatter, true, 'Fun mode brings chatter back');
+  assert.deepEqual([...chooseBubbles([{ id: 'ok', status: 'working' }], { mode: 'calm' }).problems], [], 'all healthy: no bubbles');
+  const all = chooseBubbles(agents, { mode: 'all', zoomedIn: true });
+  assert.deepEqual([...all.problems].sort(), ['down', 'failA', 'failB']);
+  assert.equal(all.latency, true);
+  assert.equal(chooseBubbles(agents, { mode: 'all', zoomedIn: false }).problems.size, 3, 'zoomed out: at most three');
+});
