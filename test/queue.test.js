@@ -308,9 +308,9 @@ test('two sources that share a name (or have none) keep separate tickets and sep
   const app = createLocalApp({ config: { sources: [cfgFor('HA'), cfgFor('HB')] }, env: { HA: 'https://a-sn.example.test', HB: 'https://b-sn.example.test', U: 'alice', P: 'pw' }, fetch, dir: mkdtempSync(join(tmpdir(), 'tri-')), log: () => {} });
   await app.listen(0);
   try {
-    assert.deepEqual(app.view().items.map((i) => i.id).sort(), ['sn:INC_A', 'sn:INC_B'], 'neither source overwrites the other, and nothing is listed twice');
+    assert.deepEqual(app.view().items.map((i) => i.id).sort(), ['0:sn:INC_A', '1:sn:INC_B'], 'neither source overwrites the other, and nothing is listed twice');
     await app.refresh();
-    assert.deepEqual(app.view().items.map((i) => i.id).sort(), ['sn:INC_A', 'sn:INC_B']);
+    assert.deepEqual(app.view().items.map((i) => i.id).sort(), ['0:sn:INC_A', '1:sn:INC_B']);
   } finally { await app.close(); }
 });
 
@@ -352,4 +352,27 @@ test('a status-fetch failure is not cleared by re-applying the floor (My Queue u
   assert.equal(last().stale, false);
   src.reapply();
   assert.equal(last().error, null);
+});
+
+test('the same ticket number in two sources of one kind (two Azure DevOps orgs, two ServiceNow instances) stays two separate tickets with separate triage', async () => {
+  const wiql = (url) => String(url).includes('org-one') ? 'one' : 'two';
+  const fetch = async (url, opts = {}) => {
+    if (opts.method === 'POST') return res({ workItems: [{ id: 1 }] });
+    return res({ value: [{ id: 1, fields: { 'System.Title': `item 1 in ${wiql(url)}`, 'System.State': 'Active', 'System.TeamProject': 'P' } }] });
+  };
+  const cfg = (org) => ({ type: 'ado', org: `env:${org}`, pat: 'env:PAT' });
+  const app = createLocalApp({ config: { sources: [cfg('O1'), cfg('O2')], triage: { command: nodeCmd("console.log('done ' + process.argv[1])") } }, env: { O1: 'org-one', O2: 'org-two', PAT: 'x' }, fetch, dir: mkdtempSync(join(tmpdir(), 'tri-')), log: () => {} });
+  const port = await app.listen(0);
+  try {
+    const items = app.view().items;
+    assert.equal(items.length, 2);
+    assert.deepEqual(items.map((i) => i.id).sort(), ['0:ado:1', '1:ado:1']);
+    assert.deepEqual(items.map((i) => i.title).sort(), ['item 1 in one', 'item 1 in two']);
+    assert.equal((await get(port, `/api/triage/${encodeURIComponent('1:ado:1')}`, { method: 'POST', headers: { 'x-ops-local': '1' } })).status, 202);
+    await waitFor(() => app.triage.state('1:ado:1').state === 'done');
+    assert.equal(app.triage.state('0:ado:1').state, 'none', 'triaging one does not mark the other');
+  } finally { await app.close(); }
+  // one source per kind keeps the readable id
+  const q = await fetchQueue([{ type: 'fixture' }], { now: NOW, startedAt: NOW });
+  assert.ok(q.items.every((i) => /^(sn|ado):/.test(i.id)));
 });

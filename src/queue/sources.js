@@ -115,11 +115,17 @@ export const SOURCES = { servicenow: servicenowAssigned, ado: adoAssigned, fixtu
 
 /** Run every configured source in parallel. One failing source never hides the others. */
 export async function fetchQueue(sourceConfigs, ctx = {}) {
+  const perType = {};
+  for (const c of sourceConfigs || []) perType[c.type] = (perType[c.type] || 0) + 1;
+  // Two sources of the same kind (say two Azure DevOps organisations) can both have "item 1". When the CONFIG has more than one of a
+  // kind, every ticket id from that kind is prefixed with its source's position: stable (it depends on the config, not on the data) and
+  // unique across sources. With one source per kind the ids stay readable ("sn:INC0012345").
+  const scope = (cfg, idx, r) => (perType[cfg.type] > 1 ? { ...r, items: r.items.map((i) => ({ ...i, id: `${idx}:${i.id}` })) } : r);
   const results = await Promise.all((sourceConfigs || []).map(async (cfg, idx) => {
     const name = cfg.name || cfg.type, key = `${idx}:${cfg.type}`;     // key = which configured source this is (two sources may share a name)
     const fn = SOURCES[cfg.type];
     if (!fn) return { key, name, ok: false, error: 'unknown source type', items: [] };
-    try { const r = await fn(cfg, ctx); return { key, name, ...r }; }
+    try { const r = scope(cfg, idx, await fn(cfg, ctx)); return { key, name, ...r }; }
     catch { return { key, name, ok: false, error: 'source could not run', items: [] }; }
   }));
   return { items: results.flatMap((r) => r.items), sources: results.map((r) => ({ name: r.name, ok: r.ok, error: r.error, count: r.items.length })), results };
