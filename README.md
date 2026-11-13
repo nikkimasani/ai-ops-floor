@@ -55,6 +55,8 @@ Two rules worth knowing:
 - **📥 My Queue** (local only: `npm run queue:demo`) — your assigned ServiceNow and Azure DevOps items in one calm order, with a triage agent per new assignment. See [docs/MY-QUEUE.md](docs/MY-QUEUE.md).
 - **📋 Board** — tiles (healthy / degraded / failing / down / maintenance, 24h uptime, MTTR), filters, one card per
   service with a 24h latency sparkline, and the incident log.
+- **Calm by default:** only the most urgent problem gets a speech bubble; tap any character for its details. ☰ Toolbox → *Bubbles* switches to the busy view (every problem, response times, chatter).
+- **Furniture:** tap any piece (in or out of Edit Office) to Rotate, Move or Remove it.
 - **Everything else from the original office still works** (furniture, looks, themes) — but Fun mode (visitors,
   parties) is **off by default**. Toggle it in ☰ Toolbox.
 

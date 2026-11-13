@@ -7,6 +7,7 @@ import { connect } from './source.js';
 import * as ops from './ops.js';
 import * as board from './board.js';
 import * as queue from './queue.js';
+import { chooseBubbles } from './shared/bubbles.js';
 import { setTheme, theme } from './theme.js';
 import { store } from './store.js';
 import * as edit from './edit.js';
@@ -330,7 +331,7 @@ canvas.addEventListener('pointermove', (e) => {
 });
 canvas.addEventListener('pointerup', (e) => {
   pts.delete(e.pointerId);
-  if (drag && pts.size === 0 && drag.moved < 6) { const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; if (!edit.onTap(x, y) && !fun.tap(x, y)) pick2(x, y); }
+  if (drag && pts.size === 0 && drag.moved < 6) { const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; if (!edit.onTap(x, y) && !fun.tap(x, y) && !pick2(x, y)) edit.openPieceAt(x, y); }
   if (pts.size < 2 && drag) drag.pinch = 0;
 });
 canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && e.buttons === 0) { const r = canvas.getBoundingClientRect(); edit.onHover(e.clientX - r.left, e.clientY - r.top); } });
@@ -347,6 +348,7 @@ function pick2(sx, sy) {
     if (d < bd) { bd = d; best = id; }
   }
   select(best === S.selected ? null : best);
+  return Boolean(best);                          // false: nobody there, so the tap may be for a piece of furniture
 }
 function select(id) { S.selected = id; renderInspect(); }
 function focus(id) {
@@ -393,16 +395,16 @@ function render(t) {
   drawRoomLabels(ctx, view);
   const tint = TINT[timeOfDay().phase];
   if (tint && !theme.t.dark) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = tint; ctx.fillRect(0, 0, w, h); ctx.restore(); }
-  // Bubbles: all of them when zoomed in; zoomed out only the three agents who have waited longest.
-  const waiting = S.order.map((i) => S.agents[i]).filter((a) => a && ['asking', 'ready', 'dark', 'blocked'].includes(a.status)).sort((p, q) => p.since - q.since);
-  const bubbled = new Set(view.s > 0.85 ? waiting.map((a) => a.id) : waiting.slice(0, 3).map((a) => a.id));
+  // Bubbles: calm by default (one problem bubble + whoever you tapped); "all" in the Toolbox brings back the busy view.
+  const bubbles = chooseBubbles(S.order.map((i) => S.agents[i]).filter(Boolean), { mode: store.get('bubbles', 'calm'), selected: S.selected, zoomedIn: view.s > 0.85, fun: store.get('fun', false) });
+  const bubbled = bubbles.problems;
   for (const id of S.order) {      // overlays: name tags, badges, bubbles (never occluded)
     const a = S.agents[id], n = npcs[id], hd = heads[id]; if (!a || !n || !hd) continue;
     if (view.s > 0.3 || id === S.selected) drawNameTag(ctx, hd.x, hd.y + 62 * hd.u * 0.9 + 12, nm(a), lookOf(a).accent);
     const icon = STATUS_ICON[a.status];
     const attn = ['asking', 'ready', 'dark', 'blocked'].includes(a.status);
     drawBadge(ctx, hd.x, hd.y - 6 * hd.u, hd.u, icon, attn ? 'rgba(255,200,90,.45)' : null);
-    const talk = n.say && performance.now() < n.sayUntil;
+    const talk = n.say && performance.now() < n.sayUntil && (bubbles.chatter || id === S.selected);   // idle chatter only in Fun mode / busy view
     const sel = id === S.selected, bx = hd.x, by = hd.y - 6 * hd.u - Math.max(8, 9.5 * hd.u) - 4;
     if (talk) drawBubble(ctx, bx, by, n.say);
     else if (sel || (attn && bubbled.has(id))) {
@@ -411,7 +413,7 @@ function render(t) {
       else if (a.status === 'blocked') drawBubble(ctx, bx, by, a.blocker || 'blocked', '#ffe0d6');
       else if (a.status === 'dark') drawBubble(ctx, bx, by, `went dark${a.note ? ' — ' + a.note : ''}`, '#ece6f5', '#6b5a78');
       else if (sel && a.tool) drawBubble(ctx, bx, by, a.tool, '#ece2ff');
-    } else if (a.status === 'working' && a.tool && view.s > 0.75) drawBubble(ctx, bx, by, a.tool, '#ece2ff', '#4a2c4a', 150);
+    } else if (bubbles.latency && a.status === 'working' && a.tool && view.s > 0.75) drawBubble(ctx, bx, by, a.tool, '#ece2ff', '#4a2c4a', 150);
   }
   fun.overlay(ctx, view, t); edit.overlay(ctx, view, t);
 }

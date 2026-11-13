@@ -24,6 +24,7 @@ export function initToolbox(c) {
       case 'agents': close(); openManager(C.S.selected); break;
       case 'party': close(); openParty(); break;
       case 'visitor': fun.inviteVisitor(); close(); break;
+      case 'bubbles-toggle': { store.set('bubbles', store.get('bubbles', 'calm') === 'calm' ? 'all' : 'calm'); render(); break; }
       case 'fun-toggle': { const on = !store.get('fun', false); store.set('fun', on); fun.setVisitors(on); render(); break; }
       case 'ufo': close(); fun.startEvent('ufo'); break;
       default:
@@ -49,6 +50,7 @@ function render() {
       ${card('agents', '✨', 'Agent Manager', 'Looks, life & hang-outs')}
       ${card('party', '🎉', 'Party planner', 'Cake, boba, dancing')}
       ${card('visitor', '🎀', 'Invite a visitor', 'Santa, fairies & friends')}
+      ${card('bubbles-toggle', '💬', 'Bubbles: ' + (store.get('bubbles', 'calm') === 'calm' ? 'calm' : 'all'), store.get('bubbles', 'calm') === 'calm' ? 'Only the most urgent problem' : 'Every problem, timings, chatter', store.get('bubbles', 'calm') === 'all' ? 'on' : '')}
       ${card('fun-toggle', '🎈', 'Fun mode: ' + (store.get('fun', false) ? 'on' : 'off'), 'Visitors & scheduled parties', store.get('fun', false) ? 'on' : '')}
       ${card('ufo', '🛸', 'Call the UFO', 'Borrows a bench agent')}
     </div>

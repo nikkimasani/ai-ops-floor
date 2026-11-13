@@ -16,6 +16,7 @@ let S, data = null, showAll = false, openResult = null, resultText = '', toast =
 
 export async function init(state, helpers = {}) {
   S = state; toast = helpers.toast || toast;
+  if (!['localhost', '127.0.0.1'].includes(location.hostname)) return false;   // the local server only ever binds 127.0.0.1: don't probe (and 404) on the public site
   if (!(await refresh())) return false;                                // not served by the local server: feature stays off
   $('queueBtn').hidden = false;
   $('queueBtn').onclick = () => toggle();
