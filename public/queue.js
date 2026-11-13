@@ -6,11 +6,12 @@
 //  2. an AGENT per assigned item: when a ticket is assigned to you, a triage agent walks in and takes a desk;
 //     it waits (thinking) until triage is started, works while your triage command runs, and goes on a break when done.
 import { ago } from './ops.js';
+import { nextHidden, triageRecords } from './shared/queue-view.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const SOURCE = { servicenow: 'ServiceNow', ado: 'Azure DevOps', fixture: 'Demo' };
-const RECENT_MS = 10 * 60000, DONE_STAY_MS = 60000, SHOW_FIRST = 3;
+const SHOW_FIRST = 3;
 let S, data = null, showAll = false, openResult = null, resultText = '', toast = () => {}, notified = new Set(), timer = 0;
 
 export async function init(state, helpers = {}) {
@@ -36,25 +37,9 @@ export async function refresh() {
   return true;
 }
 
-/** Floor characters for the items that currently have an agent. health is mapped onto the floor's existing looks. */
-export function extraRecords(now = Date.now()) {
-  if (!data) return [];
-  const out = [];
-  for (const i of data.items) {
-    const t = i.triage || { state: 'none' };
-    let health, detail, since;
-    if (t.state === 'running') { health = 'healthy'; detail = `triaging ${i.ref}…`; since = t.startedAt; }
-    else if (t.state === 'queued') { health = 'degraded'; detail = `${i.ref}: waiting for a free triage slot`; since = t.startedAt; }
-    else if (t.state === 'failed') { health = 'failing'; detail = `triage of ${i.ref} failed: ${t.error || 'see the panel'}`; since = t.endedAt || t.startedAt; }
-    else if (t.state === 'done' && t.endedAt && now - t.endedAt < DONE_STAY_MS) { health = 'maintenance'; detail = `triage ready for ${i.ref}`; since = t.endedAt; }
-    else if (t.state === 'none' && i.arrivedAt && now - i.arrivedAt < RECENT_MS) { health = 'degraded'; detail = `${i.ref} assigned: ready to triage`; since = i.arrivedAt; }
-    else continue;
-    out.push({ id: `tri:${i.id}`, name: `Triage ${i.ref}`, category: 'triage', room: 'review', owner: 'Triage agent', tier: i.priority <= 2 ? 1 : 2, onFloor: true, seatless: true, health, detail, since: since || now, lastCheck: now, latencyMs: null, uptime24h: null, uptime7d: null });
-  }
-  return out;
-}
+export const extraRecords = (now = Date.now()) => (data ? triageRecords(data.items, now) : []);
 
-function toggle(force) { const p = $('queuePanel'); p.hidden = force ?? !p.hidden; if (!p.hidden) render(); }
+function toggle(open) { const p = $('queuePanel'); p.hidden = nextHidden(p.hidden, open); if (!p.hidden) render(); }   // open: true = show, false = hide, undefined = flip
 
 const TRI_LABEL = { none: '', queued: '⏳ waiting for a slot', running: '🤖 triaging…', done: '✅ triage ready', failed: '⚠️ triage failed' };
 
@@ -97,7 +82,7 @@ function render() {
 async function onClick(e) {
   const b = e.target.closest('[data-qclose],[data-qall],[data-qtri],[data-qview]');
   if (!b) return;
-  if ('qclose' in b.dataset) return toggle(false);
+  if ('qclose' in b.dataset) return toggle(false);       // close
   if ('qall' in b.dataset) { showAll = !showAll; return render(); }
   if (b.dataset.qtri) {
     const id = b.dataset.qtri;

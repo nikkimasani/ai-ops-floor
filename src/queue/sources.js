@@ -121,5 +121,5 @@ export async function fetchQueue(sourceConfigs, ctx = {}) {
     try { const r = await fn(cfg, ctx); return { name: cfg.name || cfg.type, ...r }; }
     catch { return { name: cfg.name || cfg.type, ok: false, error: 'source could not run', items: [] }; }
   }));
-  return { items: results.flatMap((r) => r.items), sources: results.map((r) => ({ name: r.name, ok: r.ok, error: r.error, count: r.items.length })) };
+  return { items: results.flatMap((r) => r.items), sources: results.map((r) => ({ name: r.name, ok: r.ok, error: r.error, count: r.items.length })), results };
 }

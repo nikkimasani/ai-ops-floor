@@ -234,3 +234,66 @@ test('ado: a bad token is reported as an auth failure (Azure DevOps answers 203 
   const r = await adoAssigned({ org: 'env:O', pat: 'env:P' }, { env: { O: 'acme', P: 'x' }, fetch: async () => ({ ok: true, status: 203, json: async () => { throw new Error('<html>sign in</html>'); } }) });
   assert.equal(r.error, 'HTTP 401');
 });
+
+// ---------- review fixes: failed polls, seatless agents, panel close ----------
+import { triageRecords, nextHidden } from '../public/shared/queue-view.js';
+
+test('a source that fails and recovers does not turn its unchanged tickets into "new arrivals" (so auto-triage does not re-run)', async () => {
+  let mode = 'ok';
+  const rows = [{ number: 'INC1', short_description: 'a', priority: '2', state: '1', opened_at: '2026-11-12 10:00:00', sys_id: 'a'.repeat(32) }];
+  const fetch = async () => (mode === 'ok' ? res({ result: rows }) : res({}, 503));
+  const app = createLocalApp({ config: { sources: [{ type: 'servicenow', name: 'SN', instance: 'env:I', user: 'env:U', password: 'env:P' }], triage: { command: nodeCmd("console.log('x')"), auto: true } }, env: { I: 'https://sn.example.test', U: 'alice', P: 'pw' }, fetch, dir: mkdtempSync(join(tmpdir(), 'tri-')), log: () => {} });
+  const port = await app.listen(0);
+  try {
+    assert.equal(app.view().items.length, 1);
+    mode = 'down'; await app.refresh();
+    assert.equal(app.view().items.length, 1, 'the last good tickets stay visible while the source is down');
+    assert.equal(app.view().sources[0].ok, false);
+    mode = 'ok'; await app.refresh();
+    assert.equal(app.view().items[0].arrivedAt, null, 'recovery is not an arrival');
+    assert.equal(app.triage.jobs.size, 0, 'and auto-triage did not run');
+    rows.push({ number: 'INC2', short_description: 'b', priority: '1', state: '1', opened_at: '2026-11-12 11:00:00', sys_id: 'b'.repeat(32) });
+    await app.refresh();
+    assert.deepEqual([...app.triage.jobs.keys()], ['sn:INC2'], 'a genuinely new ticket still triggers it');
+    void port;
+  } finally { await app.close(); }
+});
+
+test('a source that is down at start-up is baselined when it first answers (no wave of fake arrivals)', async () => {
+  let mode = 'down';
+  const rows = [{ number: 'INC1', short_description: 'a', priority: '2', state: '1', opened_at: '2026-11-12 10:00:00' }];
+  const fetch = async () => (mode === 'ok' ? res({ result: rows }) : res({}, 503));
+  const app = createLocalApp({ config: { sources: [{ type: 'servicenow', name: 'SN', instance: 'env:I', user: 'env:U', password: 'env:P' }], triage: { command: nodeCmd("console.log('x')"), auto: true } }, env: { I: 'https://sn.example.test', U: 'alice', P: 'pw' }, fetch, dir: mkdtempSync(join(tmpdir(), 'tri-')), log: () => {} });
+  await app.listen(0);
+  try {
+    assert.equal(app.view().items.length, 0);
+    mode = 'ok'; await app.refresh();
+    assert.equal(app.view().items.length, 1);
+    assert.equal(app.view().items[0].arrivedAt, null);
+    assert.equal(app.triage.jobs.size, 0);
+  } finally { await app.close(); }
+});
+
+test('nextHidden: close really hides, open really shows, no argument flips', () => {
+  assert.equal(nextHidden(false, false), true, 'close from open -> hidden');
+  assert.equal(nextHidden(true, false), true, 'close when already closed stays closed');
+  assert.equal(nextHidden(true, true), false);
+  assert.equal(nextHidden(true), false);
+  assert.equal(nextHidden(false), true);
+});
+
+test('triageRecords: states map to floor looks; agents are seatless; old assignments and finished work leave the floor', () => {
+  const t = NOW, mk = (id, triage, extra = {}) => ({ id, ref: id, priority: 2, triage, arrivedAt: null, ...extra });
+  const recs = triageRecords([
+    mk('run', { state: 'running', startedAt: t - 5000 }), mk('wait', { state: 'queued', startedAt: t - 1000 }),
+    mk('bad', { state: 'failed', startedAt: t - 9000, endedAt: t - 2000, error: 'timed out' }),
+    mk('doneNew', { state: 'done', endedAt: t - 10000 }), mk('doneOld', { state: 'done', endedAt: t - 120000 }),
+    mk('fresh', { state: 'none' }, { arrivedAt: t - 60000 }), mk('stale', { state: 'none' }, { arrivedAt: t - 3 * H }), mk('plain', { state: 'none' }),
+  ], t);
+  const by = Object.fromEntries(recs.map((r) => [r.id, r]));
+  assert.deepEqual(Object.keys(by).sort(), ['tri:bad', 'tri:doneNew', 'tri:fresh', 'tri:run', 'tri:wait']);
+  assert.deepEqual([by['tri:run'].health, by['tri:wait'].health, by['tri:bad'].health, by['tri:doneNew'].health, by['tri:fresh'].health], ['healthy', 'degraded', 'failing', 'maintenance', 'degraded']);
+  assert.match(by['tri:bad'].detail, /triage of bad failed: timed out/);
+  assert.ok(recs.every((r) => r.seatless === true && r.onFloor === true && r.room === 'review'));
+  assert.deepEqual(triageRecords(undefined, t), []);
+});
