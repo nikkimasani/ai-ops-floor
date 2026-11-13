@@ -115,11 +115,12 @@ export const SOURCES = { servicenow: servicenowAssigned, ado: adoAssigned, fixtu
 
 /** Run every configured source in parallel. One failing source never hides the others. */
 export async function fetchQueue(sourceConfigs, ctx = {}) {
-  const results = await Promise.all((sourceConfigs || []).map(async (cfg) => {
+  const results = await Promise.all((sourceConfigs || []).map(async (cfg, idx) => {
+    const name = cfg.name || cfg.type, key = `${idx}:${cfg.type}`;     // key = which configured source this is (two sources may share a name)
     const fn = SOURCES[cfg.type];
-    if (!fn) return { name: cfg.name || cfg.type, ok: false, error: 'unknown source type', items: [] };
-    try { const r = await fn(cfg, ctx); return { name: cfg.name || cfg.type, ...r }; }
-    catch { return { name: cfg.name || cfg.type, ok: false, error: 'source could not run', items: [] }; }
+    if (!fn) return { key, name, ok: false, error: 'unknown source type', items: [] };
+    try { const r = await fn(cfg, ctx); return { key, name, ...r }; }
+    catch { return { key, name, ok: false, error: 'source could not run', items: [] }; }
   }));
   return { items: results.flatMap((r) => r.items), sources: results.map((r) => ({ name: r.name, ok: r.ok, error: r.error, count: r.items.length })), results };
 }

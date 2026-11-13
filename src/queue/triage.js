@@ -22,6 +22,15 @@ export function buildArgv(template, item) {
   return template.map((p) => p.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m)));
 }
 
+/** Kill the command AND everything it started. POSIX: the child leads its own process group, so signal the whole group. Windows: taskkill /T. */
+export function killTree(child, spawn = nodeSpawn) {
+  if (!child?.pid) return;
+  try {
+    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    else process.kill(-child.pid, 'SIGKILL');
+  } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } }
+}
+
 export const minimalEnv = (env, passEnv = []) => Object.fromEntries([...BASE_ENV, ...passEnv].filter((k) => env[k] !== undefined).map((k) => [k, env[k]]));
 
 export class TriageManager {
@@ -69,9 +78,14 @@ export class TriageManager {
       this.#set(item.id, { state: 'running', startedAt: this.now() });
       let out = '', err = '', settled = false, timedOut = false, child;
       const finish = (patch) => { if (settled) return; settled = true; clearTimeout(timer); this.#set(item.id, { endedAt: this.now(), ...patch }); resolve(); };
-      const timer = setTimeout(() => { timedOut = true; try { child?.kill('SIGKILL'); } catch { /* already gone */ } }, (this.config.timeoutSec || 300) * 1000);
+      const timer = setTimeout(() => {
+        timedOut = true;
+        killTree(child, this.spawn);                                      // the command's own children too, or they keep the pipes (and this job) alive
+        child?.stdout?.destroy(); child?.stderr?.destroy();
+        finish({ state: 'failed', error: `timed out after ${this.config.timeoutSec || 300}s` });   // settle NOW: never wait for pipes that a surviving descendant holds open
+      }, (this.config.timeoutSec || 300) * 1000);
       try {
-        child = this.spawn(argv[0], argv.slice(1), { shell: false, stdio: ['ignore', 'pipe', 'pipe'], env: minimalEnv(this.env, this.config.passEnv), cwd: this.config.cwd || process.cwd() });
+        child = this.spawn(argv[0], argv.slice(1), { shell: false, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'], env: minimalEnv(this.env, this.config.passEnv), cwd: this.config.cwd || process.cwd() });
       } catch { return finish({ state: 'failed', error: 'could not start the triage command' }); }
       child.stdout?.on('data', (d) => { if (out.length < OUT_CAP) out += d; });
       child.stderr?.on('data', (d) => { if (err.length < ERR_CAP) err += d; });

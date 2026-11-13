@@ -18,10 +18,10 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 export function createLocalApp({ config, env = process.env, fetch: doFetch = fetch, spawn, dir = resolve('.local/triage'), now = Date.now, publicDir = PUBLIC, log = console.log } = {}) {
   const startedAt = now();
   let items = [], sources = [], firstSeen = new Map(), generatedAt = null;
-  const lastGood = new Map();                                                          // source name -> its items from the last SUCCESSFUL poll
+  const lastGood = new Map();                                                          // source key -> its items from the last SUCCESSFUL poll
   const triage = new TriageManager({ config: config.triage || {}, dir, env, spawn, now });
 
-  const known = new Map();                                                             // source name -> ids from its last successful poll (its baseline)
+  const known = new Map();                                                             // source key -> ids from its last successful poll (its baseline)
 
   async function refresh() {
     const r = await fetchQueue(config.sources, { env, fetch: doFetch, now: now(), startedAt });
@@ -30,13 +30,13 @@ export function createLocalApp({ config, env = process.env, fetch: doFetch = fet
     const arrived = [];
     for (const res of r.results) {
       if (!res.ok) continue;
-      lastGood.set(res.name, res.items);
-      const ids = new Set(res.items.map((i) => i.id)), baseline = known.get(res.name);
+      lastGood.set(res.key, res.items);
+      const ids = new Set(res.items.map((i) => i.id)), baseline = known.get(res.key);
       for (const it of res.items) if (!firstSeen.has(it.id)) { firstSeen.set(it.id, { at: now(), late: Boolean(baseline) }); if (baseline) arrived.push(it); }   // a source's first good poll is its baseline, not a pile of arrivals
       for (const id of baseline || []) if (!ids.has(id)) firstSeen.delete(id);
-      known.set(res.name, ids);
+      known.set(res.key, ids);
     }
-    sources = r.sources; items = r.results.flatMap((res) => lastGood.get(res.name) || []); generatedAt = now();
+    sources = r.sources; items = r.results.flatMap((res) => lastGood.get(res.key) || []); generatedAt = now();
     if (config.triage?.auto && triage.enabled) for (const a of arrived) triage.start(a);
     log(`queue: ${items.length} item(s) from ${sources.filter((s) => s.ok).length}/${sources.length} source(s)`);   // counts only, never ticket text
     return { arrived: arrived.length };

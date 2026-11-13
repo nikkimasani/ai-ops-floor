@@ -297,3 +297,59 @@ test('triageRecords: states map to floor looks; agents are seatless; old assignm
   assert.ok(recs.every((r) => r.seatless === true && r.onFloor === true && r.room === 'review'));
   assert.deepEqual(triageRecords(undefined, t), []);
 });
+
+// ---------- review fixes (round 2): status errors, source identity, timeouts ----------
+import { writeFileSync as writeFile } from 'node:fs';
+
+test('two sources that share a name (or have none) keep separate tickets and separate history', async () => {
+  const bodies = { A: [{ number: 'INC_A', short_description: 'a', priority: '2', state: '1' }], B: [{ number: 'INC_B', short_description: 'b', priority: '2', state: '1' }] };
+  const fetch = async (url) => res({ result: bodies[String(url).includes('a-sn') ? 'A' : 'B'] });
+  const cfgFor = (host) => ({ type: 'servicenow', instance: `env:${host}`, user: 'env:U', password: 'env:P' });
+  const app = createLocalApp({ config: { sources: [cfgFor('HA'), cfgFor('HB')] }, env: { HA: 'https://a-sn.example.test', HB: 'https://b-sn.example.test', U: 'alice', P: 'pw' }, fetch, dir: mkdtempSync(join(tmpdir(), 'tri-')), log: () => {} });
+  await app.listen(0);
+  try {
+    assert.deepEqual(app.view().items.map((i) => i.id).sort(), ['sn:INC_A', 'sn:INC_B'], 'neither source overwrites the other, and nothing is listed twice');
+    await app.refresh();
+    assert.deepEqual(app.view().items.map((i) => i.id).sort(), ['sn:INC_A', 'sn:INC_B']);
+  } finally { await app.close(); }
+});
+
+test('a timed-out triage command is stopped even if it started its own child process, and the next job is not blocked', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tri-')), pidFile = join(dir, 'grandchild.pid');
+  const code = `const {spawn}=require('child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'});require('fs').writeFileSync(${JSON.stringify(pidFile)},String(c.pid));setInterval(()=>{},1000)`;
+  const m = new TriageManager({ config: { command: [process.execPath, '-e', code], timeoutSec: 0.4 }, dir });
+  m.start({ id: 'a', ref: 'A', title: '' });
+  const t0 = Date.now();
+  await waitFor(() => m.state('a').state === 'failed', 3000);
+  assert.ok(Date.now() - t0 < 2500, 'the job settled promptly, not when the grandchild eventually died');
+  assert.match(m.state('a').error, /timed out/);
+  const pid = Number(readFileSync(pidFile, 'utf8'));
+  await new Promise((r) => setTimeout(r, 300));
+  const running = (n) => { try { process.kill(n, 0); } catch { return false; } try { return readFileSync(`/proc/${n}/stat`, 'utf8').split(') ')[1][0] !== 'Z'; } catch { return true; } };   // a zombie (killed, not yet reaped by init) counts as dead
+  assert.equal(running(pid), false, 'the grandchild process is gone');
+  const m2 = new TriageManager({ config: { command: nodeCmd("console.log('ok')") }, dir });
+  m2.start({ id: 'b', ref: 'B', title: '' });
+  await waitFor(() => m2.state('b').state === 'done');
+});
+
+test('a status-fetch failure is not cleared by re-applying the floor (My Queue update or floor switch), only by a successful fetch', async () => {
+  globalThis.location = { search: '' };                                  // source.js is browser code: give it the two globals it reads
+  const status = { generatedAt: Date.now(), intervalMin: 5, site: { categories: {}, floors: 1 }, services: [], summary: {} };
+  let ok = true;
+  globalThis.fetch = async () => (ok ? { ok: true, status: 200, json: async () => status } : { ok: false, status: 503, json: async () => ({}) });
+  const { connect } = await import('../public/source.js');
+  const metas = [];
+  const src = await connect({ onSnapshot() {}, onEvent() {}, onMeta: (m) => metas.push(m), extraRecords: () => [] });
+  const last = () => metas.at(-1);
+  assert.equal(last().error, null);
+  ok = false; await src.refresh();
+  assert.equal(last().error, 'status.json: HTTP 503');
+  src.reapply();                                                         // what My Queue does every 15 seconds
+  assert.equal(last().error, 'status.json: HTTP 503', 'the failure is still reported after a re-apply');
+  assert.equal(last().stale, true);
+  ok = true; await src.refresh();
+  assert.equal(last().error, null, 'a successful fetch clears it');
+  assert.equal(last().stale, false);
+  src.reapply();
+  assert.equal(last().error, null);
+});

@@ -27,7 +27,7 @@ async function load() {
 
 export async function connect(h) {
   let office = new Office({ empty: true }), unsub = null;
-  let current = new Map(), subscribed = false, floor = h.floor || 1, lastData = null;
+  let current = new Map(), subscribed = false, floor = h.floor || 1, lastData = null, lastError = null;   // lastError = the last status fetch's failure, kept until a fetch succeeds
 
   // Hand the page a fresh office for the current floor as a navigation snapshot (instant, no walking, no synthetic feed entries).
   const resetOffice = () => { unsub?.(); office = new Office({ empty: true }); current = new Map(); unsub = null; };
@@ -50,11 +50,11 @@ export async function connect(h) {
     current = next;
     for (const ev of events) { try { office.emit(ev); } catch (err) { console.warn('skipped event', ev.type, err.message); } }
     if (swapped && subscribed) publish();                                // before the first snapshot, connect() publishes it itself
-    h.onMeta?.({ data: d, stale, fetchedAt: Date.now(), error: null, acks: lastAcks });
+    h.onMeta?.({ data: d, stale: stale || Boolean(lastError), fetchedAt: Date.now(), error: lastError, acks: lastAcks });   // a re-apply (floor switch, My Queue update) must not hide an unresolved fetch failure
   };
 
   let first;
-  try { first = await load(); } catch (err) {
+  try { first = await load(); lastError = null; } catch (err) {
     h.onSnapshot({ agents: [], tasks: [], walkins: [], mode: 'ops' });
     h.onMeta?.({ data: null, stale: true, fetchedAt: Date.now(), error: err.message });
     first = null;
@@ -63,10 +63,10 @@ export async function connect(h) {
   listen(); subscribed = true;
 
   const tick = async () => {
-    try { apply(await load()); }
-    catch (err) { h.onMeta?.({ data: null, stale: true, fetchedAt: Date.now(), error: err.message, keepLast: true }); }
+    try { const d = await load(); lastError = null; apply(d); }          // only a successful fetch clears the error
+    catch (err) { lastError = err.message; h.onMeta?.({ data: null, stale: true, fetchedAt: Date.now(), error: err.message, keepLast: true }); }
   };
-  setInterval(tick, POLL_MS);
+  const poller = setInterval(tick, POLL_MS); poller.unref?.();      // unref: lets a Node test process exit (a no-op in browsers)
   if (!first) tick();                                   // first load failed: retry quickly instead of waiting a full interval
 
   return {
