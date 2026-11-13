@@ -51,7 +51,7 @@ export class Office {
       room: info.room || 'bullpen',
       color: info.color || DRESS[n % DRESS.length], accent: info.accent || ACCENT[n % ACCENT.length],
       hair: info.hair || HAIR[n % HAIR.length], hairColor: info.hairColor || HAIR_COLORS[(n * 3) % HAIR_COLORS.length],
-      seat: this.freeSeat(info.room || 'bullpen'),
+      seat: info.seatless ? -1 : this.freeSeat(info.room || 'bullpen'),   // seatless agents (My Queue triage) never take a desk from a monitored service
       status: 'idle', task: null, tool: null, note: null, decision: null, blocker: null,
       branch: null, ahead: 0, dirty: 0, since: info.since || Date.now(), toolCalls: 0, tasksDone: 0, log: [], meta: info.meta || null,
     };
@@ -107,7 +107,7 @@ export class Office {
       case 'agent_join': {
         const i = ev.info;
         need(i && typeof i.id === 'string' && i.id && !this.agents[i.id], 'agent_join needs a new id');
-        need(this.freeSeat(i.room || 'bullpen') >= 0, 'office is full');
+        need(i.seatless || this.freeSeat(i.room || 'bullpen') >= 0, 'office is full');   // seatless (My Queue triage agents) may wait off duty when every desk is taken
         ev.info = this.pub(this.#add(i));
         break;
       }

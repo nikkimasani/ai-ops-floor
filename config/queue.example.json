@@ -1,0 +1,23 @@
+{
+  "_readme": "Copy to .local/queue.json (git-ignored) and edit. Every URL, user, password and token is an env:NAME reference: set those as environment variables on YOUR machine. Nothing here is real.",
+  "pollSec": 120,
+  "port": 3100,
+  "sources": [
+    {
+      "type": "servicenow", "name": "ServiceNow",
+      "instance": "env:SN_INSTANCE", "user": "env:SN_USER", "password": "env:SN_PASSWORD",
+      "tables": ["incident", "sc_task"]
+    },
+    {
+      "type": "ado", "name": "Azure DevOps",
+      "org": "env:ADO_ORG", "project": "env:ADO_PROJECT", "pat": "env:ADO_PAT"
+    }
+  ],
+  "triage": {
+    "command": ["gh", "copilot", "--", "REPLACE-WITH-THE-NON-INTERACTIVE-FLAGS-FROM-gh-copilot---help", "/triage {ref}: {title}"],
+    "auto": false,
+    "timeoutSec": 300,
+    "concurrency": 1,
+    "passEnv": []
+  }
+}

@@ -223,3 +223,37 @@ test('diffForFloor + a full floor: a service shifting onto the viewed floor stil
   assert.equal(Object.keys(office.agents).length, SEATS.length);
   assert.ok(office.agents['s-newcomer'], 'the newcomer was seated');
 });
+
+test('a seatless agent (My Queue triage agent) can join a full office; a normal one cannot', async () => {
+  const { Office } = await import('../public/shared/state.js');
+  const { SEATS } = await import('../public/shared/layout.js');
+  const mk = (id, extra = {}) => ({ id, name: id, health: 'healthy', room: 'review', floor: 1, onFloor: true, ...extra });
+  const fullOffice = () => {
+    const office = new Office({ empty: true }), services = Array.from({ length: SEATS.length }, (_, i) => mk(`s${i}`));
+    const r = diffForFloor(new Map(), services, {}, 1);
+    for (const e of r.events) office.emit(e);
+    return { office, services, current: r.next };
+  };
+  const errorsFor = (office, events) => events.flatMap((e) => { try { office.emit(e); return []; } catch (err) { return [err.message]; } });
+
+  let f = fullOffice();
+  assert.ok(errorsFor(f.office, diffForFloor(f.current, [...f.services, mk('overflow')], {}, 1).events).includes('office is full'), 'a normal agent is refused');
+
+  f = fullOffice();
+  assert.deepEqual(errorsFor(f.office, diffForFloor(f.current, [...f.services, mk('tri:INC1', { seatless: true })], {}, 1).events), []);
+  assert.equal(f.office.agents['tri:INC1'].seat, -1, 'waits off duty instead of taking a desk');
+});
+
+test('a seatless agent never takes a desk, even when desks are free, so a service added later can still join', async () => {
+  const { Office } = await import('../public/shared/state.js');
+  const { SEATS } = await import('../public/shared/layout.js');
+  const mk = (id, extra = {}) => ({ id, name: id, health: 'healthy', room: 'review', floor: 1, onFloor: true, ...extra });
+  const office = new Office({ empty: true });
+  let current = new Map();
+  const step = (records) => { const r = diffForFloor(current, records, {}, 1); current = r.next; return r.events.flatMap((e) => { try { office.emit(e); return []; } catch (err) { return [err.message]; } }); };
+  const services = Array.from({ length: SEATS.length - 1 }, (_, i) => mk(`s${i}`));
+  assert.deepEqual(step([...services, mk('tri:A', { seatless: true })]), []);
+  assert.equal(office.agents['tri:A'].seat, -1, 'free desks exist, but the triage agent still does not take one');
+  assert.deepEqual(step([...services, mk('tri:A', { seatless: true }), mk('last-service')]), [], 'the last desk is still there for a service');
+  assert.ok(office.agents['last-service'].seat >= 0);
+});

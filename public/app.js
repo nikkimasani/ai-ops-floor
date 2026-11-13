@@ -6,6 +6,7 @@ import { GRID, SEATS, SPOTS, CORRIDOR_Y, ENTRANCE, ROOMS } from './shared/layout
 import { connect } from './source.js';
 import * as ops from './ops.js';
 import * as board from './board.js';
+import * as queue from './queue.js';
 import { setTheme, theme } from './theme.js';
 import { store } from './store.js';
 import * as edit from './edit.js';
@@ -477,8 +478,9 @@ board.init(S);
 $('opsSummary').onclick = () => board.open();
 connect({
   floor: S.floor,
+  extraRecords: () => queue.extraRecords(),
   onSnapshot: applySnapshot, onEvent: applyEvent,
   onMeta: (m) => { S.sharedAcks = m.acks || {}; if (m.data || !S.opsData?.data) S.opsData = m; else S.opsData = { ...S.opsData, stale: true, error: m.error }; ops.onMeta(S.opsData, $); S.floor = S.source?.floor?.() ?? S.floor; ops.renderFloors(S.opsData, $, S.floor); board.update(); refresh(); },
-}).then((src) => { S.source = src; });
+}).then((src) => { S.source = src; queue.init(S, { toast }); });
 setInterval(() => { if (S.opsData) ops.onMeta(S.opsData, $); }, 15000);          // keep "updated 3m ago" honest between polls
 requestAnimationFrame(frame);

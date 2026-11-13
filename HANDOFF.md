@@ -12,9 +12,10 @@ A health board for AI tools and Azure Function apps. Each service is a character
 - Probe + adapters: `http`, `fixture` (demo), `azure-monitor`, `servicenow`, `copilot-seats`
 - Board, dependency graph, multiple floors, webhook alerts (Teams/Slack style)
 - Shared acknowledgements via `/ack` on incident issues (private repos only, off by default)
+- **My Queue** (local only): your assigned ServiceNow and Azure DevOps items in one calm view, with a triage agent per new assignment that runs your Copilot `/triage` skill (see docs/MY-QUEUE.md)
 - CI workflow, probe workflow (ran once on GitHub with demo data: green)
 
-**Never run against a real system (verified only against mocks):** Azure Monitor, ServiceNow, Copilot seats, alert webhooks, incident issues and `/ack` permissions. Expect small first-run fixes.
+**Never run against a real system (verified only against mocks):** Azure Monitor, ServiceNow (both the queue adapter and My Queue), Azure DevOps, Copilot seats, the Copilot CLI hand-off, alert webhooks, incident issues and `/ack` permissions. Expect small first-run fixes.
 
 **It contains fiction only.** All 16 services, owners and numbers in `config/services.json` and `public/data/` are made up.
 
@@ -84,6 +85,15 @@ Pass the secret in probe.yml. Do not log or print the URL anywhere.
 Enable shared acknowledgements per docs/SHARED-ACKS.md. Set site.sharedAcks and site.repo in config/services.json.
 Tell me the exact repository settings a person must change (team access limited to the Enterprise AI team, Actions
 permissions). Do not enable this in any public repository.
+```
+
+### Prompt 7: My Queue (your assigned ServiceNow and Azure DevOps items, plus your triage skill)
+```
+Read docs/MY-QUEUE.md. Help me set up My Queue on THIS machine only: copy config/queue.example.json to .local/queue.json,
+and tell me exactly which environment variables to set (SN_INSTANCE, SN_USER, SN_PASSWORD, ADO_ORG, ADO_PAT; never ask for or
+print their values). Run `npm run queue:demo` first and confirm it works. Then look at `gh copilot --help` on this machine and
+propose the exact triage.command array that runs my /triage skill for ONE prompt non-interactively and exits, using the fewest
+permissions possible. Show me the command and test it on a harmless prompt before wiring it in. Do not enable triage.auto.
 ```
 
 ### Prompt for any failure
