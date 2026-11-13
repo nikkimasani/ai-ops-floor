@@ -192,4 +192,17 @@ body.boardOpen { overflow: hidden; }
 .qact{display:flex;gap:6px;flex-wrap:wrap}
 .qresult{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,monospace;background:#faf7ff;border:1px solid rgba(179,135,245,.3);border-radius:10px;padding:10px;max-height:260px;overflow:auto}
 .qempty{text-align:center;padding:18px 0;color:#7a6a92}
-@media (max-width:640px){#queuePanel{left:8px;right:8px;width:auto;top:60px}}
+
+
+/* ---- phones: the header must never be wider than the screen, and My Queue becomes a full-screen sheet ---- */
+@media (max-width: 760px) {
+  html, body { overflow-x: hidden; }                       /* a wide header must not stretch the page (and push buttons off-screen) */
+  header { overflow-x: auto; scrollbar-width: none; gap: 5px; padding-left: 8px; padding-right: 8px; }
+  header::-webkit-scrollbar { display: none; }
+  header > * { flex: 0 0 auto; }                           /* swipe the header sideways if there are more buttons than fit */
+  header .brand { display: none; }
+  header .chip { padding: 0 9px; }
+  #queuePanel { inset: 0; width: auto; max-height: none; border-radius: 0; border: 0; z-index: 30; padding: calc(8px + env(safe-area-inset-top)) 14px 24px; }
+  #queuePanel .qhead { position: sticky; top: calc(-8px - env(safe-area-inset-top)); z-index: 1; background: #fff; padding: 10px 0 8px; margin: 0; }
+  #queuePanel .qhead .icon { width: 44px; height: 44px; }   /* a comfortable thumb target for the close button */
+}
